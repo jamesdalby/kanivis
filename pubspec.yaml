@@ -1,0 +1,44 @@
+name: kanivis
+description: Knowles' Audible Navigation for Visually Impaired Sailors
+
+version: 1.0.0+2
+
+environment:
+  sdk: ">=2.1.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_tts:
+  intl:
+  shared_preferences:
+  audioplayers: ^0.14.0
+  nmea:
+    path: ../../AndroidStudioProjects/nmea
+
+  cupertino_icons: ^0.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: "^0.7.3"
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "svg/k1024.png"
+
+flutter:
+
+  uses-material-design: true
+
+  assets:
+    - assets/beeps/medium-1.mp3
+    - assets/beeps/high-1.mp3
+    - assets/beeps/high-2.mp3
+    - assets/beeps/high-3.mp3
+    - assets/beeps/low-1.mp3
+    - assets/beeps/low-2.mp3
+    - assets/beeps/low-3.mp3
+    - assets/beeps/upchirp.mp3
+    - assets/beeps/downchirp.mp3
