@@ -11,9 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nmea/nmea.dart';
 
-void main() => runApp(MyApp());
-
-class MyApp extends StatelessWidget {
+class KanivisApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -53,7 +51,7 @@ class DMS {
         v = 'south';
         break;
     }
-    return "$deg degrees, ${_dp1(ms)} minutes, $v";
+    return "$deg degrees, ${_dp1(ms)} minutes $v";
   }
 
   static DMS latitude(double lat) {
@@ -91,8 +89,9 @@ class BusData {
   DateTime _utc;
   int _btw;
   double _dtw, _xte, _vmw;
+  String _wpt;
 
-  int _heading;
+  // int _heading;
   int _cog;
   int _compass;
   double _bsp, _sog, _vmg;
@@ -127,7 +126,7 @@ class BusData {
 
   int get cog => _cog;
 
-  int get heading => _heading;
+  // int get heading => _heading;
 
   int get compass => _compass;
 
@@ -140,6 +139,8 @@ class BusData {
   double get trip => _trip;
 
   double get gpsTrip => _gpsTrip;
+
+  String get wpt => _wpt ?? 'not set';
 
   // Cross track error as a string suitable for speaking using TTS
   String get xte {
@@ -169,6 +170,7 @@ class BusData {
       _dtw = msg.rangeToDestination;
       _xte = msg.crossTrackError;
       _vmw = msg.destinationClosingVelocity;
+      _wpt = msg.destinationWaypointID;
 
     } else if (msg is RMC) {
       _lat = DMS.latitude(msg.position.lat);
@@ -201,16 +203,17 @@ class BusData {
 
     } else if (msg is HDG) {
       _compass = msg.heading.toInt();
-      _heading = msg.trueHeading.toInt();
+      // _heading = msg.trueHeading.toInt();
 
     } else if (msg is HDT) {
-      _heading = msg.heading.toInt();
+      // _heading = msg.heading.toInt();
 //      _check(_hdgt, _course);
 
     } else if (msg is MWV) {
       if (msg.isTrue) {
         _twa = msg.windAngleToBow?.toInt();
         _tws = msg.windSpeed;
+        _tack = msg.tack; // slightly dodgy, maybe? distinguish twa and awa tacks?  Not sure it matters that much.
       } else {
         _awa = msg.windAngleToBow?.toInt();
         _aws = msg.windSpeed;
@@ -220,7 +223,7 @@ class BusData {
     } else if (msg is VHW) {
       _bsp = msg.boatspeedKnots;
       if (msg.headingTrue != null) {
-        _heading = msg.headingTrue.toInt();
+        // _heading = msg.headingTrue.toInt();
       } // TODO: Should this be mag? selectable?
 
     } else if (msg is GSA) {
@@ -238,6 +241,9 @@ class BusData {
 
     } else if (msg is GLL) {
       // Geographic lat/long - handled by 'Pos' above
+
+    } else if (msg is GLC) {
+      // obsolete loran
 
     } else if (msg is GGA) {
       // GPS, handled by Pos above
@@ -348,7 +354,9 @@ class _MyHomePageState extends State<MyHomePage> {
   /// initialise text-to-speech stuff to default/sensible values
   static _initTTS() async {
     // await spk.setLanguage("en-US");
+    // await spk.setVoice()
 
+    print(await spk.getVoices);
 
     speechRate = _prefs.get('kanivis.speechRate')??1.0;
     await spk.setSpeechRate(speechRate);
@@ -358,10 +366,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
     pitch = _prefs.get('kanivis.pitch')??1.0;
     await spk.setPitch(pitch);
+
+    spk.speak('Knowles Audible Navigation Information for Visually Impaired Sailors');
   }
 
   /// Speak the given text aloud
-  void _speak(String text) async {
+  void _speak(String text, [bool noInteruption = false]) async {
+    // TODO: uninterruptible TTS - depth (and beeps?)
+    print(text);
     await spk.speak(text);
   }
 
@@ -408,7 +420,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _sensitivity = _prefs.getInt('kanivis.sensitivity') ?? 5;
 
       _nmea = new NMEASocketReader(
-        _prefs.getString('kanivis.host'),
+        _prefs.getString('kanivis.host')??'dealingtechnology.com',
         _prefs.getInt('kanivis.port')??10110
       );
 
@@ -518,6 +530,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+
         appBar: AppBar(
           title: Text('KANIVIS'),
         ),
@@ -541,39 +554,70 @@ class _MyHomePageState extends State<MyHomePage> {
                     });
                   })
             ])),
-        body: Container(
-          // 3x5 grid of buttons
-            child: GridView.count(
-                crossAxisCount: 3,
-                childAspectRatio: 1.3,
-                padding: const EdgeInsets.all(4.0),
-                mainAxisSpacing: 4.0,
-                crossAxisSpacing: 4.0,
-                children: <Widget>[
+        body:
+            // 3x5 grid of buttons
+            Container(
+              constraints: BoxConstraints.expand(),
+              color: Colors.redAccent,
+              child: Column(
+                
+                children:
+                    [
+                      Expanded(
+                        child: Row(
+                          
+                            children:[
+                              _v('1', "App Wind", "Guidance", _apparentWind),
+                              _v('2', "True Wind", "Pitch-", _trueWind),
+                              _v('3', "AIS", "Pitch+", _aisInfo),
 
-                  /*
-                  2, decrease pitch, 3 increase pitch.
-        5, decrease speed, 6 increase speed.
-        8, decrease volume, 9 increase volume.
-        0, decrease off-course sensitivity, # increase off-course sensitivity
-                   */
-                  // widgets have labels for number mode and for command mode; with a function to invoke for command mode operation
-                  _v('1', "App Wind", "Guidance", _apparentWind),
-                  _v('2', "True Wind", "Pitch-", _trueWind),
-                  _v('3', "AIS", "Pitch+", _aisInfo),
-                  _v('4', "Pos", "", _pos),
-                  _v('5', "UTC", "Speed-", _utc),
-                  _v('6', "Waypoint", "Speed+",_waypoint),
-                  _v('7', "Heading", "", _heading),
-                  _v('8', "Speed", "Vol-", _speed),
-                  _v('9', "Trip", "Vol+", _trip),
-                  _v('*', "Steer", "", _steerTo),
-                  _v('0', "Depth", "Sensitivity-", _depth, longPress: changeDepthReporting),
-                  _v('#', "Number", "Sensitivity+", _number),
-                  _v('-', "Port", "", _port),
-                  _v('=', "Enter", "Cmd", _enter),
-                  _v('+', "Stbd", "", _stbd),
-                ].toList())));
+                            ]
+                        ),
+                      ),
+                      Expanded(
+                        child: Row(
+                            children:[
+                              _v('4', "Pos", "", _pos),
+                              _v('5', "UTC", "Speed-", _utc),
+                              _v('6', "Waypoint", "Speed+",_waypoint),
+
+                            ]
+                        ),
+                      ),
+                      Expanded(
+                        child: Row(
+                            children:[
+                              _v('7', "Heading", "", _heading),
+                              _v('8', "Speed", "Vol-", _speed),
+                              _v('9', "Trip", "Vol+", _trip),
+
+                            ]
+                        ),
+                      ),
+                      Expanded(
+                        child: Row(
+                            children:[
+                              _v('*', "Steer", "", _steerTo),
+                              _v('0', "Depth", "Sensitivity-", _depth, longPress: changeDepthReporting),
+                              _v('#', "Number", "Sensitivity+", _number),
+
+                            ]
+                        ),
+                      ),
+                      Expanded(
+                        child: Row(
+                            children:[
+                              _v('-', "Port", "", _port, wind: "Bear Away"),
+                              _v('=', "Enter", "Cmd", _enter),
+                              _v('+', "Stbd", "", _stbd, wind: "Luff"),
+
+                            ]
+                        ),
+                      ),
+                  ]
+            )
+            )
+    );
   }
 
   void changeDepthReporting() {
@@ -592,34 +636,38 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  GridTile _v(String num, String label, String option, void op(), { void longPress() }) =>
-      GridTile(
-          child: RaisedButton(
-              onPressed: () async {
-                switch (_mode) {
-                  case Mode.Cmd: op(); break;
-                  case Mode.Num: _acc(num); break;
-                  case Mode.Opt: _opt(num); break;
-                }
-              },
-              padding: const EdgeInsets.all(0.0),
-              child: Container(
-                  padding: const EdgeInsets.all(10.0),
-                  child: _t(longPress,
-                      Text(
-                          _mode == Mode.Cmd ? label :
-                          _mode == Mode.Opt ? option :
-                                              num,
-                          style: TextStyle(fontSize: 20)
+  Widget _v(String num, String label, String option, void op(), { void longPress(), String wind }) =>
+      Expanded(
+        child: RaisedButton(
+                  onPressed: () async {
+                    switch (_mode) {
+                      case Mode.Cmd: op(); break;
+                      case Mode.Num: _acc(num); break;
+                      case Mode.Opt: _opt(num); break;
+                    }
+                  },
+                  //padding: const EdgeInsets.all(2.0),
+                  child: Center(
+                      child: _t(longPress,
+                          Text(
+                              _mode == Mode.Cmd ? _wlabel(label,wind) :
+                              _mode == Mode.Opt ? option :
+                                                  num,
+                              style: TextStyle(fontSize: 20)
+                          )
                       )
                   )
-              )
-          )
+        ),
       );
 
   int _tot;
   Rel _rel = Rel.Abs;
 
+  String _wlabel(final String label, final String wind) {
+    if (wind == null) return label;
+    if (_steer == Steer.Wind) { return wind; }
+    return label;
+  }
   void _acc(String n) async {
     await spk.speak(n);
     if (n.compareTo('0') >= 0 && n.compareTo('9') <= 0) {
@@ -649,6 +697,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
       case '=':
         _enter();
+        spk.speak('Command mode');
         break;
 
       case '#':
@@ -662,11 +711,14 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _apparentWind() {
-    _speak("A W A ${_hdg(_busData.awa)}, A W S ${_dp1(_busData.aws)}");
+    _speak("""
+ A W A ${_hdg(_busData.awa)} ${_busData.tack ?? ''},
+ A W S ${_dp1(_busData.aws)}
+ """);
   }
 
   void _trueWind() {
-    _speak("T W A ${_hdg(_busData.twa)}, T W S ${_dp1(_busData.tws)}");
+    _speak("T W A ${_hdg(_busData.twa)} ${_busData.tack ?? ''}, T W S ${_dp1(_busData.tws)}");
   }
 
   void _aisInfo() {
@@ -685,15 +737,16 @@ class _MyHomePageState extends State<MyHomePage> {
     _speak("Lat ${la.toString()}, Long ${lo.toString()}");
   }
 
-  DateFormat _formatter = new DateFormat('H, mm, ss');
+  DateFormat _formatter = new DateFormat('H,mm,ss');
 
   void _utc() {
-    _speak("U T C " + _formatter.format(_busData?.utc ?? DateTime.now()));
+    _speak("UTC " + _formatter.format(_busData?.utc ?? DateTime.now()));
   }
 
   void _waypoint() {
     _speak(
         """
+Waypoint ${_busData.wpt}
 B T W ${_hdg(_busData.btw)}, 
 D T W ${_dp1(_busData.dtw)},
 X T E ${_busData.xte}, 
@@ -701,10 +754,19 @@ V M W ${_dp1(_busData.vmw)}""");
   }
 
   void _heading() {
-    _speak(
-        "Heading ${_hdg(_busData.heading)}, C O G ${_hdg(
-            _busData.cog)}, compass course ${_hdg(
-            _busData.compass)}, A W A ${_hdg(_busData.awa)}");
+    // TODO Target awa, target compass
+    //Heading ${_hdg(_busData.heading)},
+    String st = "";
+    if (_steer == Steer.Compass) {
+      st = "Target compass course $_target";
+    } else if (_steer == Steer.Wind)  {
+      st = "Target wind angle $_target";
+    }
+    _speak("""
+Compass ${_hdg(_busData.compass)},
+C O G ${_hdg(_busData.cog)}, 
+A W A ${_hdg(_busData.awa)}
+$st""");
   }
 
   void _speed() {
@@ -830,7 +892,7 @@ V M W ${_dp1(_busData.vmw)}""");
 
       case Mode.Opt:
         // return to command mode:
-
+        // This isn't actually called,it's handled in _opt below
         _speak("Now in command mode");
         _setMode(Mode.Cmd);
         break;
@@ -841,10 +903,10 @@ V M W ${_dp1(_busData.vmw)}""");
     switch (num) {
       case "1": // help
         _speak("""
-        2, decrease pitch, 3 increase pitch.
-        5, decrease speed, 6 increase speed.
-        8, decrease volume, 9 increase volume.
-        0, decrease off-course sensitivity, # increase off-course sensitivity.
+        2 decrease pitch, 3 increase pitch.
+        5 decrease speed, 6 increase speed.
+        8 decrease volume, 9 increase volume.
+        0 decrease off-course sensitivity, # increase off-course sensitivity.
         Enter, returns to command mode""");
         break;
       case "3": // pitch up
@@ -890,6 +952,7 @@ V M W ${_dp1(_busData.vmw)}""");
         await _prefs.setDouble('kanivis.volume', _volume);
         await _prefs.setDouble('kanivis.pitch', _pitch);
         await _prefs.setInt('kanivis.seneitivity', _sensitivity);
+        _speak("Command mode");
         _setMode(Mode.Cmd);
         break;
     }
@@ -906,6 +969,8 @@ V M W ${_dp1(_busData.vmw)}""");
     if (i < -180) return i+360;
     return i;
   }
+
+
 }
 
 class _CommsSettingsState extends State<CommsSettings> {
