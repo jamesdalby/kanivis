@@ -14,7 +14,8 @@ dependencies:
   shared_preferences:
   audioplayers: ^0.14.0
   nmea:
-    path: ../../AndroidStudioProjects/nmea
+    git:
+      url: https://github.com/jamesdalby/nmea.git
 
   cupertino_icons: ^0.1.2
 

@@ -757,10 +757,12 @@ V M W ${_dp1(_busData.vmw)}""");
     // TODO Target awa, target compass
     //Heading ${_hdg(_busData.heading)},
     String st = "";
-    if (_steer == Steer.Compass) {
-      st = "Target compass course $_target";
-    } else if (_steer == Steer.Wind)  {
-      st = "Target wind angle $_target";
+    if (_target != null) {
+      if (_steer == Steer.Compass) {
+        st = "Target compass course ${_hdg(_target)}";
+      } else if (_steer == Steer.Wind) {
+        st = "Target wind angle ${_hdg(_target)}";
+      }
     }
     _speak("""
 Compass ${_hdg(_busData.compass)},
