@@ -140,7 +140,7 @@ class BusData {
 
   double get gpsTrip => _gpsTrip;
 
-  String get wpt => _wpt ?? 'not set';
+  String get wpt => _wpt;
 
   // Cross track error as a string suitable for speaking using TTS
   String get xte {
@@ -166,6 +166,7 @@ class BusData {
     }
 
     if (msg is RMB) {
+      // TODO: Cansider also using BWR, BWC for recording waypoint info?
       _btw = msg.bearingToDestination?.toInt();
       _dtw = msg.rangeToDestination;
       _xte = msg.crossTrackError;
@@ -744,6 +745,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _waypoint() {
+    if (_busData.wpt == null) {
+      _speak("No active waypoint");
+      return;
+    }
     _speak(
         """
 Waypoint ${_busData.wpt}
@@ -754,8 +759,6 @@ V M W ${_dp1(_busData.vmw)}""");
   }
 
   void _heading() {
-    // TODO Target awa, target compass
-    //Heading ${_hdg(_busData.heading)},
     String st = "";
     if (_target != null) {
       if (_steer == Steer.Compass) {
