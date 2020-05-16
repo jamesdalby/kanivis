@@ -16,6 +16,9 @@ dependencies:
   nmea:
     git:
       url: https://github.com/jamesdalby/nmea.git
+  ais:
+    git:
+      url: https://github.com/jamesdalby/ais.git
 
   cupertino_icons: ^0.1.2
 

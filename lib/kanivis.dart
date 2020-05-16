@@ -464,12 +464,14 @@ class _MyHomePageState extends State<MyHomePage> {
         double ratio = _busData.depth / _lastReportedDepth;
         if (ratio >= 1.1) {
           if (_depthReport) {
-            _audioCache.play('upchirp.mp3');
+            _depth();
+            // _audioCache.play('upchirp.mp3');
           }
           _lastReportedDepth = _busData.depth;
         } else if (ratio < 0.9) {
           if (_depthReport) {
-            _audioCache.play('downchirp.mp3');
+            _depth();
+            // _audioCache.play('downchirp.mp3');
           }
           _lastReportedDepth = _busData.depth;
         }
