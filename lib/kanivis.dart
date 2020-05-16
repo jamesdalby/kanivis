@@ -656,7 +656,8 @@ class _MyHomePageState extends State<MyHomePage> {
                               _mode == Mode.Cmd ? _wlabel(label,wind) :
                               _mode == Mode.Opt ? option :
                                                   num,
-                              style: TextStyle(fontSize: 20)
+                              style: TextStyle(fontSize: 14),
+                              textAlign: TextAlign.center
                           )
                       )
                   )

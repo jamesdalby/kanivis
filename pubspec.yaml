@@ -1,7 +1,7 @@
 name: kanivis
 description: Knowles' Audible Navigation for Visually Impaired Sailors
 
-version: 1.0.0+2
+version: 1.0.0+4
 
 environment:
   sdk: ">=2.1.0 <3.0.0"
