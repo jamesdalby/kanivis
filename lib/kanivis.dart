@@ -1,12 +1,12 @@
 import 'dart:async';
-
-import 'package:audioplayers/audio_cache.dart';
+import 'dart:math';
+// import 'package:audioplayers/audio_cache.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:intl/intl.dart';
 import 'package:kanivis/offcourse.dart';
+import 'package:kanivis/qspeak.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nmea/nmea.dart';
@@ -54,7 +54,8 @@ class DMS {
     return "$deg degrees, ${_dp1(ms)} minutes $v";
   }
 
-  static DMS latitude(double lat) {
+  static DMS? latitude(double? lat) {
+    if (lat == null) return null;
     String ns = 'n';
     if (lat < 0) {
       lat = -lat;
@@ -66,7 +67,8 @@ class DMS {
     return DMS(deg, min, ns);
   }
 
-  static DMS longitude(double lng) {
+  static DMS? longitude(double? lng) {
+    if (lng == null) return null;
     String ew = 'e';
     if (lng < 0) {
       lng = -lng;
@@ -81,79 +83,79 @@ class DMS {
 
 /// NMEA derived data goes into here in a canonicalised form where it is read by the Flutter side for speaking/display
 class BusData {
-  int _awa, _twa;
-  String _tack;
-  double _aws, _tws;
+  int? _awa, _twa;
+  String? _tack; // null, 'Starboard', 'Port'
+  double? _aws, _tws;
   // double _twd; // true wind direction - use to compute twa?
-  DMS _lat, _lng;
-  DateTime _utc;
-  int _btw;
-  double _dtw, _xte, _vmw;
-  String _wpt;
+  DMS? _lat, _lng;
+  DateTime? _utc;
+  int? _btw;
+  double? _dtw, _xte, _vmw;
+  String? _wpt;
 
   // int _heading;
-  int _cog;
-  int _compass;
-  double _bsp, _sog, _vmg;
-  double _trip, _gpsTrip;
-  double _depth;
+  int? _cog;
+  int? _compass;
+  double? _bsp, _sog, _vmg;
+  double? _trip, _gpsTrip;
+  double? _depth;
 
-  int get btw => _btw;
+  int? get btw => _btw;
 
-  int get awa => _awa;
+  int? get awa => _awa;
 
-  String get tack => _tack;
+  String? get tack => _tack;
 
-  int get twa => _twa;
+  int? get twa => _twa;
 
-  double get aws => _aws;
+  double? get aws => _aws;
 
-  double get tws => _tws;
+  double? get tws => _tws;
 
-  int get latDeg => _lat.deg;
+  int? get latDeg => _lat?.deg;
 
-  double get latMS => _lat.ms;
+  double? get latMS => _lat?.ms;
 
-  int get lngDeg => _lng.deg;
+  int? get lngDeg => _lng?.deg;
 
-  double get lngMS => _lng.ms;
+  double? get lngMS => _lng?.ms;
 
-  double get depth => _depth;
+  double? get depth => _depth;
 
-  DateTime get utc => _utc;
+  DateTime? get utc => _utc;
 
-  double get dtw => _dtw;
+  double? get dtw => _dtw;
 
-  int get cog => _cog;
+  int? get cog => _cog;
 
   // int get heading => _heading;
 
-  int get compass => _compass;
+  int? get compass => _compass;
 
-  double get bsp => _bsp;
+  double? get bsp => _bsp;
 
-  double get sog => _sog;
+  double? get sog => _sog;
 
-  double get vmg => _vmg;
+  double? get vmg => _vmg;
 
-  double get trip => _trip;
+  double? get trip => _trip;
 
-  double get gpsTrip => _gpsTrip;
+  double? get gpsTrip => _gpsTrip;
 
-  String get wpt => _wpt;
+  String? get wpt => _wpt;
 
   // Cross track error as a string suitable for speaking using TTS
   String get xte {
     if (_xte == null) {
       return "Unavailable";
     }
-    if (_xte < 0) {
-      return (-_xte).toStringAsFixed(2) + ", to port";
+    if (_xte! < 0) {
+      return (-_xte!).toStringAsFixed(2) + ", to port";
     }
-    return _xte.toStringAsFixed(2) + ", to starboard";
+    return _xte!.toStringAsFixed(2) + ", to starboard";
   }
 
-  double get vmw => _vmw;
+  double? get vmw => _vmw;
 
   void handleNMEA(var msg) {
     // arriving message - exciting!
@@ -187,23 +189,25 @@ class BusData {
     } else if (msg is DPT) {
       // TODO: The different depth should probably be option-switchable - keel/transducer/surface.
       // For now all set to depth below keel, and others ignored.
-      if (msg.depthKeel != null) {
-        _depth = msg.depthKeel;
+      if (msg.depthTransducer != null) {
+        _depth = msg.depthTransducer;
       }
 
     } else if (msg is DBT) {
       // DBT m = msg;
-      // _depth = m.metres; // transducer?
+      _depth = msg.metres; // transducer?
 
     } else if (msg is DBS) {
       // depth below surface - ignore?
-
+      if (msg.depthSurface != null) {
+        _depth = msg.depthSurface;
+      }
     } else if (msg is DBK) {
       // depth below keel
       _depth = msg.depthKeel;
 
     } else if (msg is HDG) {
-      _compass = msg.heading.toInt();
+      _compass = msg.heading?.toInt();
       // _heading = msg.trueHeading.toInt();
 
     } else if (msg is HDT) {
@@ -280,7 +284,7 @@ class BusData {
     } else if (msg is XTE) {
       // cross track error
       if (msg.crossTrackError != null) {
-        _xte = msg.crossTrackError * (msg.directionToSteer == 'L' ? 1 : -1);
+        _xte = msg.crossTrackError! * (msg.directionToSteer == 'L' ? 1 : -1);
       }
 
     } else {
@@ -290,14 +294,14 @@ class BusData {
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key}) : super(key: key);
+  MyHomePage({Key? key}) : super(key: key);
 
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
 
 /// Convert [num] to a three digit (zero padded) number suitable for passing to TTS
-String _hdg(int num) {
+String _hdg(int? num) {
   if (num == null) {
     return "Unavailable";
   }
@@ -305,7 +309,7 @@ String _hdg(int num) {
 }
 
 /// Convert [num] to a decimal with 1 digit after the decimal point
-String _dp1(double num) {
+String _dp1(double? num) {
   if (num == null) {
     return "Unavailable";
   }
@@ -313,7 +317,7 @@ String _dp1(double num) {
 }
 
 /// Whether currently in command-entry mode or number-entry mode.
-enum Mode { Num, Cmd, Opt }
+enum Mode { Num, Cmd, Opt, Steer }
 
 /// During number entry, + or - switch into Relative (Neg, Pos) mode, otherwise Absolute
 enum Rel { Neg, Abs, Pos }
@@ -321,20 +325,23 @@ enum Rel { Neg, Abs, Pos }
 /// Currently selected steering mode
 enum Steer { Compass, Wind }
 
+/// How off-course should be reported.
+enum OffCourse { Periodic, Hint, Error, Beep }
+
 class _MyHomePageState extends State<MyHomePage> {
   // initialise test-to-speech magic
-  static FlutterTts spk = FlutterTts();
+  static QSpeak _spk = QSpeak();
 
   /// Update [_latReportedDepth] whenever the user has been told of the depth (not when it's sent on NMEA)
-  double _lastReportedDepth;
+  double? _lastReportedDepth;
 
   /// incoming NMEA data stashed in here.
   BusData _busData = new BusData();
 
-  NMEASocketReader _nmea;
+  late NMEASocketReader _nmea;
 
   /// current user-defined target course or target wind angle, used to detect deviation therefrom.
-  int _target;
+  int? _target;
 
   bool _depthReport = true;
 
@@ -350,36 +357,41 @@ class _MyHomePageState extends State<MyHomePage> {
   static double get speechRate => _speechRate;
   static set speechRate(double v) => _speechRate = limit(v, 0.1, 3.0);
 
-  static SharedPreferences _prefs;
+  static late SharedPreferences _prefs;
 
   /// initialise text-to-speech stuff to default/sensible values
   static _initTTS() async {
     // await spk.setLanguage("en-US");
     // await spk.setVoice()
 
-    print(await spk.getVoices);
+    // print(await spk.getVoices);
 
-    speechRate = _prefs.get('kanivis.speechRate')??1.0;
-    await spk.setSpeechRate(speechRate);
+    speechRate = (_prefs.get('kanivis.speechRate') as double?)??1.0;
+    await _spk.setSpeechRate(speechRate);
 
-    volume = _prefs.get('kanivis.volume')??1.0;
-    await spk.setVolume(volume);
+    volume = (_prefs.get('kanivis.volume') as double?)??1.0;
+    await _spk.setVolume(volume);
 
-    pitch = _prefs.get('kanivis.pitch')??1.0;
-    await spk.setPitch(pitch);
+    pitch = (_prefs.get('kanivis.pitch') as double?)??1.0;
+    await _spk.setPitch(pitch);
 
-    spk.speak('Knowles Audible Navigation Information for Visually Impaired Sailors');
+    // todo: sort out interrupting.
+    // we'll need to identify how to interrupt (and not interrupt) existing reporting.
+    // spk.setCompletionHandler(() => print('Shh!') );
+
+    _spk.immediate('Knowles Audible Navigation Information for Visually Impaired Sailors');
+
   }
 
   /// Speak the given text aloud
-  void _speak(String text, [bool noInteruption = false]) async {
-    // TODO: uninterruptible TTS - depth (and beeps?)
-    print(text);
-    await spk.speak(text);
-  }
+  // void _speak(String text, [bool noInteruption = false]) async {
+  //   // TODO: uninterruptible TTS - depth (and beeps?)
+  //   print(text);
+  //   await spk.speak(text);
+  // }
 
-  static AudioPlayer _audioPlayer;
-  static AudioCache _audioCache;
+  static late AudioPlayer _audioPlayer;
+  static late AudioCache _audioCache;
 
   static void _initBeep() async {
     _audioPlayer = AudioPlayer();
@@ -387,7 +399,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     // _audioPlayer.onPlayerStateChanged.listen((e) => print("State $e"));
 
-    _audioCache = AudioCache(prefix: 'beeps/', fixedPlayer: _audioPlayer);
+    _audioCache = AudioCache(prefix: 'assets/beeps/', fixedPlayer: _audioPlayer);
 
     _audioCache.loadAll([
       'high-1.mp3',
@@ -403,7 +415,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void dispose() {
     super.dispose();
-    spk.stop();
+    _spk.stop();
   }
 
   /// current mode, command or number-entry, starts off in command mode.
@@ -411,6 +423,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   /// Whether tracking errors are measured against AWA or Compass
   Steer _steer = Steer.Wind;
+
+  OffCourse? _offCourse;
 
   _MyHomePageState() {
     SharedPreferences.getInstance().then((p) {
@@ -427,14 +441,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
       _nmea.process( _busData.handleNMEA);
 
-      Timer.periodic(Duration(seconds: 1), (t) => _checkHdg(t));
+      Timer.periodic(Duration(seconds: 1), (t) => _checkHdg());
     });
   }
 
-  Timer _offCourseTimer;
-  double _beepFreq;
+  Timer? _offCourseTimer;
+  int? _beepMs;
   int _sensitivity = 3;
-  int _err;
+  int? _err;
 
   void _offCourseBeep(int sign) {
     if (sign < 0) {
@@ -444,34 +458,18 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  // This method is invoked when beping is needed
-  // the (singleton) _offCourseTimer is set to the one-shot timer,
-  // when the timer fires, it beeps and then sets a new timer to run with the possibly changed) _beepFreq
-  // if _BeepFreq is zero, nothing is reset (normally this won't happen, the timer will be cancelled elsewhere, but this bolsters up for a tiny race condition.)
-  void _trun() {
-    if (_beepFreq == 0) { return; }
-    _offCourseTimer = Timer(
-        Duration(milliseconds: 1000 ~/ _beepFreq),
-            () {
-          _offCourseBeep(_err.sign);
-          _trun();
-        });
-  }
-
-  void _checkHdg(Timer t) {
+  void _checkHdg() {
     if (_busData.depth != null && _busData.depth != 0) {
-      if (_lastReportedDepth != null) {
-        double ratio = _busData.depth / _lastReportedDepth;
+      if ((_lastReportedDepth ?? 0) != 0) {
+        double ratio = _busData.depth! / _lastReportedDepth!.toDouble();
         if (ratio >= 1.1) {
           if (_depthReport) {
             _depth();
-            // _audioCache.play('upchirp.mp3');
           }
           _lastReportedDepth = _busData.depth;
         } else if (ratio < 0.9) {
           if (_depthReport) {
             _depth();
-            // _audioCache.play('downchirp.mp3');
           }
           _lastReportedDepth = _busData.depth;
         }
@@ -481,53 +479,30 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     if (_target != null) {
-
       // -180 <= _err < 180
-      // if _err > 0 then we should steer right
       // if _err > 0 then we should steer left
+      // if _err < 0 then we should steer right
       // if _err is null then either compass or wind angle isn't available.
       // When steering to wind, the tack is relevant
+      // see Steer.md for a more comprehensive explanation
       //
       if (_steer == Steer.Compass) {
         if (_busData.compass != null) {
-          _err = _normalise(_busData.compass - _target);
+          _err = _normalise(_busData.compass! - _target!);
         } else {
           _err = null;
         }
       } else {
         if (_busData.awa != null) {
-          _err = _normalise(_busData.awa - _target);
-          if (_busData.tack == 'S') { _err = -_err; }
+          _err = _normalise(_busData.awa! - _target!); // prob dn't need normalise, but no harm
+          if (_busData.tack == 'Starboard') { _err = -_err!; }
         } else {
           _err = null;
         }
       }
+      _setBeepFreq();
     }
-    if (_err == null) {
-      if (_offCourseTimer != null) {
-        _offCourseTimer.cancel();
-        _offCourseTimer = null;
-      }
-    } else {
-        _beepFreq = offcourse(_err.toDouble().abs(), 10, 30, 0.5, 5, _sensitivity);
 
-      if (_beepFreq != 0) {
-        // We need to beep:
-        if (_offCourseTimer == null) {
-          // create a new timer if it's needed, this will assign the Timer to _offCourseTimer
-          _trun();
-        }
-        // the timer will reference '_beepFreq' to decide how often to beep
-        // so the act of changing it is enough (when the timer is already running)
-      } else {
-        // No beeping
-        if (_offCourseTimer != null) {
-          // cancel any existing timer - stops all beeps.
-          _offCourseTimer.cancel();
-          _offCourseTimer = null;
-        }
-      }
-    }
   }
 
   @override
@@ -570,9 +545,9 @@ class _MyHomePageState extends State<MyHomePage> {
                         child: Row(
                           
                             children:[
-                              _v('1', "App Wind", "Guidance", _apparentWind),
-                              _v('2', "True Wind", "Pitch-", _trueWind),
-                              _v('3', "AIS", "Pitch+", _aisInfo),
+                              _v('1', "App Wind", "Guidance", _apparentWind, 'Guidance'),
+                              _v('2', "True Wind", "Pitch-", _trueWind, 'Heading'),
+                              _v('3', "AIS", "Pitch+", _aisInfo, 'Angle'),
 
                             ]
                         ),
@@ -580,9 +555,9 @@ class _MyHomePageState extends State<MyHomePage> {
                       Expanded(
                         child: Row(
                             children:[
-                              _v('4', "Pos", "", _pos),
-                              _v('5', "UTC", "Speed-", _utc),
-                              _v('6', "Waypoint", "Speed+",_waypoint),
+                              _v('4', "Pos", "", _pos, null),
+                              _v('5', "UTC", "Speed-", _utc, 'Hint (C)'),
+                              _v('6', "Waypoint", "Speed+",_waypoint, 'Hint (W)'),
 
                             ]
                         ),
@@ -590,9 +565,9 @@ class _MyHomePageState extends State<MyHomePage> {
                       Expanded(
                         child: Row(
                             children:[
-                              _v('7', "Heading", "", _heading),
-                              _v('8', "Speed", "Vol-", _speed),
-                              _v('9', "Trip", "Vol+", _trip),
+                              _v('7', "Heading", "", _heading, null),
+                              _v('8', "Speed", "Vol-", _speed, 'Error (C)'),
+                              _v('9', "Trip", "Vol+", _trip, 'Error (W)'),
 
                             ]
                         ),
@@ -600,9 +575,9 @@ class _MyHomePageState extends State<MyHomePage> {
                       Expanded(
                         child: Row(
                             children:[
-                              _v('*', "Steer", "", _steerTo),
-                              _v('0', "Depth", "Sensitivity-", _depth, longPress: changeDepthReporting),
-                              _v('#', "Number", "Sensitivity+", _number),
+                              _v('*', "Steer", "", _steerTo, null),
+                              _v('0', "Depth", "Sensitivity-", _depth, 'Beep (C)', longPress: changeDepthReporting),
+                              _v('#', "Number", "Sensitivity+", _number, 'Beep (W)'),
 
                             ]
                         ),
@@ -610,9 +585,9 @@ class _MyHomePageState extends State<MyHomePage> {
                       Expanded(
                         child: Row(
                             children:[
-                              _v('-', "Port", "", _port, wind: "Bear Away"),
-                              _v('=', "Enter", "Cmd", _enter),
-                              _v('+', "Stbd", "", _stbd, wind: "Luff"),
+                              _v('-', "Port 10", "", _port, null, wind: "Bear Away"),
+                              _v('=', "Enter", "Cmd", _enter, 'Cmd'),
+                              _v('+', "Stbd 10", "", _stbd, null, wind: "Luff Up"),
 
                             ]
                         ),
@@ -625,11 +600,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void changeDepthReporting() {
     _depthReport = !_depthReport;
-    _speak(
-        "Depth warnings are now " + (_depthReport ? 'enabled' : 'silenced'));
+    _spk.immediate("Depth warnings are now " + (_depthReport ? 'enabled' : 'silenced'));
   }
 
-  Widget _t(void longPress(), Widget w) {
+  Widget _t(void longPress()?, Widget w) {
     if (longPress == null) {
       return w;
     }
@@ -639,14 +613,15 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Widget _v(String num, String label, String option, void op(), { void longPress(), String wind }) =>
+  Widget _v(String num, String label, String option, void op(), String? steerOption, { void longPress()?, String? wind }) =>
       Expanded(
-        child: RaisedButton(
+        child: ElevatedButton(
                   onPressed: () async {
                     switch (_mode) {
                       case Mode.Cmd: op(); break;
                       case Mode.Num: _acc(num); break;
                       case Mode.Opt: _opt(num); break;
+                      case Mode.Steer: _steerMode(num); break;
                     }
                   },
                   //padding: const EdgeInsets.all(2.0),
@@ -654,6 +629,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       child: _t(longPress,
                           Text(
                               _mode == Mode.Cmd ? _wlabel(label,wind) :
+                              _mode == Mode.Steer ? steerOption??'' :
                               _mode == Mode.Opt ? option :
                                                   num,
                               style: TextStyle(fontSize: 14),
@@ -664,21 +640,21 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       );
 
-  int _tot;
+  int? _tot = 0;
   Rel _rel = Rel.Abs;
 
-  String _wlabel(final String label, final String wind) {
+  String _wlabel(final String label, final String? wind) {
     if (wind == null) return label;
     if (_steer == Steer.Wind) { return wind; }
     return label;
   }
   void _acc(String n) async {
-    await spk.speak(n);
+    _spk.immediate(n);
     if (n.compareTo('0') >= 0 && n.compareTo('9') <= 0) {
       // it's a digit, accumulate it
       _tot = (_tot ?? 0) * 10 + int.parse(n);
-      if (_tot > 359 || _tot < -359) {
-        _speak("Invalid number, returning to command mode");
+      if (_tot! > 359 || _tot! < -359) {
+        _spk.immediate("Invalid number, returning to command mode");
         _rel = Rel.Abs;
         _tot = null;
         _setMode(Mode.Cmd);
@@ -688,12 +664,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
     switch (n) {
       case '-':
+        _spk.immediate('minus');
         if (_tot == null) {
           _rel = Rel.Neg;
         }
         break;
 
       case '+':
+        _spk.immediate('plus');
         if (_tot == null) {
           _rel = Rel.Pos;
         }
@@ -701,11 +679,11 @@ class _MyHomePageState extends State<MyHomePage> {
 
       case '=':
         _enter();
-        spk.speak('Command mode');
+        _spk.immediate('Command mode');
         break;
 
       case '#':
-        spk.speak("Number entry cancelled, now in command mode");
+        _spk.immediate("Number entry cancelled, now in command mode");
         _rel = Rel.Abs;
         _tot = null;
         _setMode(Mode.Cmd);
@@ -715,44 +693,44 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _apparentWind() {
-    _speak("""
+    _spk.add(SpeakPriority.General, 'AWA', """
  A W A ${_hdg(_busData.awa)} ${_busData.tack ?? ''},
  A W S ${_dp1(_busData.aws)}
  """);
   }
 
   void _trueWind() {
-    _speak("T W A ${_hdg(_busData.twa)} ${_busData.tack ?? ''}, T W S ${_dp1(_busData.tws)}");
+    _spk.add(SpeakPriority.General, 'TWA', "T W A ${_hdg(_busData.twa)} ${_busData.tack ?? ''}, T W S ${_dp1(_busData.tws)}");
   }
 
   void _aisInfo() {
-    _speak("A I S currently unimplemented, sorry");
+    _spk.immediate("A I S currently unimplemented, sorry");
   }
 
   void _pos() {
     // _speak("Lat $_lat.degrees $_lat.minutes $_lat.ns, $_lng.degrees $_lng.minutes $_lng.ew");
-    DMS la = _busData._lat;
-    DMS lo = _busData._lng;
+    DMS? la = _busData._lat;
+    DMS? lo = _busData._lng;
     if (la == null || lo == null) {
-      _speak("Position Unavailable");
+      _spk.add(SpeakPriority.General, 'POS', "Position Unavailable");
       return;
     }
 
-    _speak("Lat ${la.toString()}, Long ${lo.toString()}");
+    _spk.add(SpeakPriority.General, 'POS', "Lat ${la.toString()}, Long ${lo.toString()}");
   }
 
   DateFormat _formatter = new DateFormat('H,mm,ss');
 
   void _utc() {
-    _speak("UTC " + _formatter.format(_busData?.utc ?? DateTime.now()));
+    _spk.add(SpeakPriority.General, 'UTC', "UTC " + _formatter.format(_busData.utc ?? DateTime.now()));
   }
 
   void _waypoint() {
-    if (_busData.wpt == null) {
-      _speak("No active waypoint");
+    if ((_busData.wpt??'') == '') {
+      _spk.add(SpeakPriority.General, 'WPT', "No active waypoint");
       return;
     }
-    _speak(
+    _spk.add(SpeakPriority.General, 'WPT',
         """
 Waypoint ${_busData.wpt}
 B T W ${_hdg(_busData.btw)}, 
@@ -770,7 +748,7 @@ V M W ${_dp1(_busData.vmw)}""");
         st = "Target wind angle ${_hdg(_target)}";
       }
     }
-    _speak("""
+    _spk.add(SpeakPriority.General, 'HDG', """
 Compass ${_hdg(_busData.compass)},
 C O G ${_hdg(_busData.cog)}, 
 A W A ${_hdg(_busData.awa)}
@@ -778,20 +756,27 @@ $st""");
   }
 
   void _speed() {
-    _speak(
+    _spk.add(SpeakPriority.General, 'SPD',
         "Speed ${_dp1(_busData.bsp)}, S O G ${_dp1(
             _busData.sog)}, V M G ${_dp1(_busData.vmg)}");
   }
 
   void _trip() {
-    _speak(
+    _spk.add(SpeakPriority.General, 'TRP',
         "Trip ${_dp1(_busData.trip)}, G P S trip ${_dp1(_busData.gpsTrip)}");
   }
 
   void _steerTo() {
-    switch (_steer) {
+    setState(() {
+      _mode = Mode.Steer;
+    });
+    _spk.immediate('Steer mode. Press 1 for guidance');
+    /*switch (_steer) {
       case Steer.Compass:
-        _steer = Steer.Wind;
+        setState(() {
+          _steer = Steer.Wind;
+        });
+
         _target = _busData._awa;
         if (_target == null) {
           _speak("No A W A is available, please set a target angle");
@@ -802,7 +787,9 @@ $st""");
 
 
       case Steer.Wind:
-        _steer = Steer.Compass;
+        setState(() {
+          _steer = Steer.Compass;
+        });
         _target = _busData._compass;
         if (_target == null) {
           _speak(
@@ -811,12 +798,12 @@ $st""");
         }
         _speak("Now steering to compass ${_hdg(_target)}");
         break;
-    }
+    }*/
   }
 
   void _depth() {
     _lastReportedDepth = _busData.depth;
-    _speak("Depth ${_dp1(_lastReportedDepth)}");
+    _spk.add(SpeakPriority.General, 'DPT', "Depth ${_dp1(_lastReportedDepth)}");
   }
 
   void _setMode(Mode m) {
@@ -824,30 +811,29 @@ $st""");
   }
 
   void _number() {
-    _speak("Number mode");
+    _spk.immediate("Number mode");
     _setMode(Mode.Num);
   }
 
   void _alter(int num, String wind, String compass) {
     if (_target == null) {
-      _speak("No course set currently");
+      _spk.immediate("No course set currently");
       return;
     }
-    // XXX: This is wrong (for wind) need to work out whether on port or stbd currently.
     switch (_steer) {
       case Steer.Wind:
-        _target = (_target + num);
-        if (_target < 0) {
-          _target = 180 - _target;
-        } else if (_target > 180) {
-          _target = _target - 180;
+        _target = (_target! - num);
+        if (_target! < 0) {
+          _target = 180 - _target!;
+        } else if (_target! > 180) {
+          _target = _target! - 180;
         }
-        _speak(wind);
+        _spk.add(SpeakPriority.General, 'TGT', "Target angle now ${_target.toString()}");
         break;
 
       case Steer.Compass:
-        _target = (_target + num) % 360;
-        _speak(compass);
+        _target = (_target! + num) % 360;
+        _spk.add(SpeakPriority.General, 'TGT', "Target course now ${_hdg(_target)}");
         break;
     }
   }
@@ -866,25 +852,25 @@ $st""");
     switch (_mode) {
       case Mode.Num:
       if (_tot == null) {
-        _speak("No number was entered");
+        _spk.immediate("No number was entered");
       } else {
         switch (_rel) {
           case Rel.Neg:
-            _target = (_target - _tot) % 360;
+            _target = (_target??0 - _tot!) % 360; // XXX: check ??0 is sensible, also below
             break;
 
           case Rel.Abs:
-            _target = _tot % 360;
+            _target = _tot! % 360;
             break;
 
           case Rel.Pos:
-            _target = (_target + _tot) % 360;
+            _target = (_target??0 + _tot!) % 360;
             break;
         }
         if (_steer == Steer.Compass) {
-          _speak("Target course ${_hdg(_target)}");
+          _spk.add(SpeakPriority.General, 'TGT', "Target course ${_hdg(_target)}");
         } else {
-          _speak("Target wind angle ${_hdg(_target)}");
+          _spk.add(SpeakPriority.General, 'TGT', "Target wind angle ${_hdg(_target)}");
         }
       }
       _tot = null;
@@ -894,15 +880,19 @@ $st""");
 
       case Mode.Cmd:
         // switch to options mode:
-        _speak("Options mode. Press 1 for guidance. Press 'Enter' to return to command mode");
+        _spk.immediate("Options mode. Press 1 for guidance. Press 'Enter' to return to command mode");
         _setMode(Mode.Opt);
         break;
 
       case Mode.Opt:
         // return to command mode:
         // This isn't actually called,it's handled in _opt below
-        _speak("Now in command mode");
+        _spk.immediate("Now in command mode");
         _setMode(Mode.Cmd);
+        break;
+
+      case Mode.Steer:
+        // Similarly not called, handled in steerOptions
         break;
     }
   }
@@ -910,7 +900,7 @@ $st""");
   void _opt(String num) async {
     switch (num) {
       case "1": // help
-        _speak("""
+        _spk.immediate("""
         2 decrease pitch, 3 increase pitch.
         5 decrease speed, 6 increase speed.
         8 decrease volume, 9 increase volume.
@@ -919,54 +909,91 @@ $st""");
         break;
       case "3": // pitch up
         pitch += 0.1;
-        spk.setPitch(pitch);
-        _speak("pitch ${pitch.toStringAsFixed(1)}");
+        _spk.setPitch(pitch.toDouble());
+        _spk.add(SpeakPriority.Application, 'PITCH', "pitch ${pitch.toStringAsFixed(1)}");
         break;
       case "2": // pitch down
         pitch -= 0.1;
-        spk.setPitch(pitch);
-        _speak("pitch ${pitch.toStringAsFixed(1)}");
+        _spk.setPitch(pitch);
+        _spk.add(SpeakPriority.Application, 'PITCH', "pitch ${pitch.toStringAsFixed(1)}");
         break;
       case "6": // speed up
         speechRate += 0.1;
-        spk.setSpeechRate(speechRate);
-        _speak("rate ${speechRate.toStringAsFixed(1)}");
+        _spk.setSpeechRate(speechRate);
+        _spk.add(SpeakPriority.Application, 'RATE', "rate ${speechRate.toStringAsFixed(1)}");
         break;
       case "5": // speed down
         speechRate -= 0.1;
-        spk.setSpeechRate(speechRate);
-        _speak("rate ${speechRate.toStringAsFixed(1)}");
+        _spk.setSpeechRate(speechRate);
+        _spk.add(SpeakPriority.Application, 'RATE', "rate ${speechRate.toStringAsFixed(1)}");
         break;
       case "9": // volume up
         volume += 0.1;
-        spk.setVolume(volume);
-        _speak("volume ${volume.toStringAsFixed(1)}");
+        _spk.setVolume(volume);
+        _spk.add(SpeakPriority.Application, 'VOL', "volume ${volume.toStringAsFixed(1)}");
         break;
       case "8": // volume down
         volume -= 0.1;
-        spk.setVolume(volume);
-        _speak("volume ${volume.toStringAsFixed(1)}");
+        _spk.setVolume(volume);
+        _spk.add(SpeakPriority.Application, 'VOL', "volume ${volume.toStringAsFixed(1)}");
         break;
       case "0": // sensitivity down
-        _sensitivity = limit(--_sensitivity, 1, 9);
-        _speak("sensitivity $_sensitivity");
+        _sensitivity = limit(--_sensitivity, 1, 9).toInt();
+        _spk.add(SpeakPriority.Application, 'SENS', "sensitivity $_sensitivity");
+        _setBeepFreq();
         break;
+
       case "#":
         _sensitivity = limit(++_sensitivity, 1, 9);
-        _speak("sensitivity $_sensitivity");
+        _spk.add(SpeakPriority.Application, 'SENS', "sensitivity $_sensitivity");
+        _setBeepFreq();
         break;
+
       case '=':
         await _prefs.setDouble('kanivis.speechRate', _speechRate);
         await _prefs.setDouble('kanivis.volume', _volume);
         await _prefs.setDouble('kanivis.pitch', _pitch);
         await _prefs.setInt('kanivis.seneitivity', _sensitivity);
-        _speak("Command mode");
+        _spk.immediate("Command mode");
         _setMode(Mode.Cmd);
         break;
     }
   }
 
-  static num limit(num v, num lo, num hi) {
+  void _setBeepFreq() {
+
+    switch (_offCourse) {
+      case null: return;
+      case OffCourse.Error:
+      case OffCourse.Hint:
+
+        _beepMs = min(10000, max(1000 * (10 - _sensitivity - (_err??0).abs()~/5), 1000));
+        // _beepMs = 1000 + 9000 ~/ max(_sensitivity + (_err??0).abs()~/5, 9);
+        break;
+
+      case OffCourse.Periodic:
+        _beepMs = 1000 * (10 - _sensitivity);
+        break;
+
+      case OffCourse.Beep:
+        if (_err != null) {
+          double o = offcourse(_err!.abs().toDouble(), 10.0-_sensitivity, 30, 0.5, 5, _sensitivity);
+          if (o != 0) {
+            _beepMs = 1000~/o;
+          } else {
+            _beepMs = 10000;
+          }
+          print("beep err: $_err sens: $_sensitivity ms: $_beepMs");
+        }
+        break;
+    }
+
+    if (_beepMs != 0 && _offCourseTimer == null) {
+      _offCourseTimer = Timer(Duration(milliseconds: _beepMs!), _speakOffCourse);
+    }
+  }
+
+  static T limit<T extends num>(T v, T lo, T hi) {
     if (v<=lo) { return lo; }
     if (v>=hi) { return hi; }
     return v;
@@ -978,7 +1005,139 @@ $st""");
     return i;
   }
 
+  void _steerMode(String num) {
+    switch (num) {
+      case '1': // guidance
+        _spk.immediate('''
+2, to steer to compass with periodic heading announcment.
+3, wind steer with periodic angle announcement.
 
+5, compass steer with magnitude-dependent announcement frequency.
+6, wind steer with magnitude-dependent announcement frequency.
+
+8, compass steer with off-course report.
+9, wind steer with off-wind report.
+
+0, compass steer with beeps
+#, wind steer with beeps
+
+Change sensitivity in options mode to control frequency of reporting, and error thresholds.
+
+Enter, return to command mode
+        ''');
+        break;
+
+      case '2': // hdg (C)
+         _steerUsing(Steer.Compass, OffCourse.Periodic);
+        break;
+
+      case '3': // hdg (W)
+        _steerUsing(Steer.Wind, OffCourse.Periodic);
+        break;
+
+      case '5': // hint (C)
+        _steerUsing(Steer.Compass, OffCourse.Hint);
+        break;
+      case '6': // hint (W)
+        _steerUsing(Steer.Wind, OffCourse.Hint);
+        break;
+
+      case '8': // error (c)
+        _steerUsing(Steer.Compass, OffCourse.Error);
+        break;
+      case '9': // error (w)
+        _steerUsing(Steer.Wind, OffCourse.Error);
+        break;
+
+      case '0': // beep (c)
+        _steerUsing(Steer.Compass, OffCourse.Beep);
+        break;
+      case '#': // beep (w)
+        _steerUsing(Steer.Wind, OffCourse.Beep);
+        break;
+
+      case '=': // command mode
+        setState(() {
+          _mode = Mode.Cmd;
+        });
+        _spk.immediate('Command mode');
+        break;
+
+      default: break;
+    }
+  }
+
+  void _steerUsing(Steer steer, OffCourse offCourse) {
+    _steer = steer;
+    _offCourse = offCourse;
+
+    // if (_target == null) {
+      if (steer == Steer.Compass) {
+        _target = _busData.compass;
+        if (_target == null) {
+          _spk.add(SpeakPriority.General, 'TGT', 'No compass course available, maybe set it manually using number mode');
+          return;
+        }
+      } else {
+        _target = _busData.awa;
+        if (_target == null) {
+          _spk.add(SpeakPriority.General, 'TGT', 'No wind angle available, maybe set it manually using number mode');
+          return;
+        }
+      }
+    // }
+    if (_steer == Steer.Compass) {
+      _spk.add(SpeakPriority.General, 'TGT', "Now steering to compass ${_hdg(_target)}");
+    } else {
+      _spk.add(SpeakPriority.General, 'TGT', "Now steering to apparent wind ${_hdg(_target)}");
+    }
+    // reset beep timer; this will set the beep delay, and also crate a one-shot timer that calls _speakOffCourse if need be
+    _setBeepFreq();
+  }
+
+  // This does the clever off course stuff, in conjunction with the [_setBeepFreq] method.
+  void _speakOffCourse() {
+    if (_offCourse == null) { return; } // odd, how did we get invoked?
+
+    switch (_offCourse!) {
+      case OffCourse.Beep:
+        // beep with increasing rapidity as we go further off course, sign indicates high beep or low beep tone.
+        _offCourseBeep(_err?.sign??0);
+        break;
+
+      case OffCourse.Hint:
+        // indicate whether we're off with timing dependent on urgency, same as 'Periodic' but with timing dependent on error
+
+      case OffCourse.Periodic:
+        // report course/angle with periodicity dependent only on sensitivity
+        switch (_steer) {
+          case Steer.Compass:
+            _spk.add(SpeakPriority.General, 'TGT', _hdg(_busData.compass));
+           break;
+
+          case Steer.Wind:
+            _spk.add(SpeakPriority.General, 'TGT', _hdg(_busData.awa) + ' ' + (_busData.tack??''));
+            break;
+        }
+        break;
+
+      case OffCourse.Error:
+        switch (_steer) {
+          case Steer.Compass:
+          case Steer.Wind:
+            if (_err == 0) {
+              _spk.add(SpeakPriority.General, 'TGT', "On course");
+            } else {
+              // error interpretation : you are too far to ...
+              _spk.add(SpeakPriority.General, 'TGT', _err!.abs().toStringAsFixed(0) + (_err! < 0 ? " Port" : " Starboard"));
+            }
+           break;
+        }
+        break;
+    }
+    // and reset the timer:
+    _offCourseTimer = Timer(Duration(milliseconds: _beepMs!), _speakOffCourse);
+  }
 }
 
 class _CommsSettingsState extends State<CommsSettings> {
@@ -993,8 +1152,8 @@ class _CommsSettingsState extends State<CommsSettings> {
 
   @override
   Widget build(BuildContext context) {
-    _hc.text = widget._nmea.hostname ?? 'localhost';
-    _pc.text = (widget._nmea.port??10110).toString();
+    _hc.text = widget._nmea.hostname;
+    _pc.text = widget._nmea.port.toString();
     return Scaffold(
         appBar: AppBar(title: Text('Settings')),
         body: Form(
@@ -1008,7 +1167,7 @@ class _CommsSettingsState extends State<CommsSettings> {
                     counterText: 'Hostname or IP address',
                     hintText: 'Hostname'),
                 validator: (value) {
-                  if (value.isEmpty) {
+                  if (value?.isEmpty??true) {
                     return 'Please enter some text';
                   }
                   return null;
@@ -1021,7 +1180,7 @@ class _CommsSettingsState extends State<CommsSettings> {
                     hintText: 'Port number'),
                 validator: (value) {
                   try {
-                    if (int.parse(value) > 0) {
+                    if (value != null && (int.tryParse(value)??0) > 0) {
                       return null;
                     }
                   } catch (err) {}
@@ -1031,9 +1190,9 @@ class _CommsSettingsState extends State<CommsSettings> {
 
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16.0),
-                child: RaisedButton(
+                child: ElevatedButton(
                   onPressed: () {
-                    if (_formKey.currentState.validate() == true) {
+                    if (_formKey.currentState?.validate() == true) {
                       Navigator.of(context).pop(this);
                     }
                   },
