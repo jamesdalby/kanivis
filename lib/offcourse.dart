@@ -14,26 +14,38 @@ import 'dart:math';
 /// But always u=1 when x=1.
 /// m is the degree of acuteness, 5 is about right for what I want,
 /// bigger numbers make the function more 'blunt', smaller num
-double urgency(double x, double s, [ int m = 5]) {
-  return (pow(x,m)*(1-s) + pow(x,(1.0/m))*s);
+/// // deprecated in favour of 'interval' method below:
+// double urgency(double x, double s, [ int m = 5]) {
+//   return (pow(x,m)*(1-s) + pow(x,(1.0/m))*s);
+// }
+//
+// double offcourse(double error, double minError, double maxError, double minFreq, double maxFreq, int sensitivity) {
+//   // print("Error $error");
+//   if (error < minError) return 0;
+//   if (error > maxError) return maxFreq.toDouble();
+//   double e = (error-minError)/(maxError-minError); // scale to 0..1
+//
+//   // scale to minFreq .. maxFreq
+//   double freq = urgency(e, sensitivity/9.0)*(maxFreq-minFreq)+minFreq;
+//   // print("Err $error, freq $freq");
+//   return freq;
+// }
+
+// ken suggests:
+double interval(int sensitivity, int error) {
+  error = error.abs();
+  return min(5, ((12.0-sensitivity)/2) * (1.0-(error-1.0)/(error+1.0))); // was 19, not 12
 }
-
-double offcourse(double error, double minError, double maxError, double minFreq, double maxFreq, int sensitivity) {
-  // print("Error $error");
-  if (error < minError) return 0;
-  if (error > maxError) return maxFreq.toDouble();
-  double e = (error-minError)/(maxError-minError); // scale to 0..1
-
-  // scale to minFreq .. maxFreq
-  double freq = urgency(e, sensitivity/9.0)*(maxFreq-minFreq)+minFreq;
-  // print("Err $error, freq $freq");
-  return freq;
-}
-
 main() {
   // test
-
-  for (double i=0;i<40; i++) {
-    print("$i "+"  "+offcourse(i, 10, 30, 2, 8, 1).toStringAsFixed(2)+" "+offcourse(i, 10, 30, 2, 8, 5).toStringAsFixed(2)+"  "+offcourse(i, 10, 30, 2, 8, 9).toStringAsFixed(2));
+  for (int i=0;i<40; i++) {
+    print("$i "
+        +"  "+interval(1, i).toStringAsFixed(2)
+        +"  "+interval(5, i).toStringAsFixed(2)
+        +"  "+interval(10, i).toStringAsFixed(2)
+    );
   }
+  // for (double i=0;i<40; i++) {
+  //   print("$i "+"  "+offcourse(i, 10, 30, 2, 8, 1).toStringAsFixed(2)+" "+offcourse(i, 10, 30, 2, 8, 5).toStringAsFixed(2)+"  "+offcourse(i, 10, 30, 2, 8, 9).toStringAsFixed(2));
+  // }
 }

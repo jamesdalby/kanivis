@@ -22,6 +22,7 @@ dependencies:
 
   cupertino_icons: ^1.0.4
   collection: ^1.15.0
+  wave_generator: ^0.1.0
 
 dev_dependencies:
   flutter_test:

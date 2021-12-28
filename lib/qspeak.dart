@@ -7,9 +7,9 @@ import 'package:flutter_tts/flutter_tts.dart';
  */
 class QSpeak {
   static FlutterTts _spk = FlutterTts();
-  static PriorityQueue<_SpeakItem> q = PriorityQueue();
-  static Map<String, String> t = {};
-  static List<String> _immediate = [];
+  static PriorityQueue<_SpeakItem> q = PriorityQueue(); // q of items, priority order.  Depth beats everything, for instance.
+  static Map<String, String> t = {};  // Message per target; multiple messages of same target type: only last is retained.
+  static List<String> _immediate = []; // List of messages, in order, that should be emitted asap, before anything else.
 
   static final QSpeak _singleton = QSpeak._internal();
 
@@ -21,6 +21,7 @@ class QSpeak {
   }
 
   add(SpeakPriority pri, String key, String message) {
+    print(key + ': '+ message);
     t.update(key, (value) => message, ifAbsent: () {
       q.add(_SpeakItem(pri, key));
       return message;
@@ -43,18 +44,21 @@ class QSpeak {
     return t.remove(q.removeFirst()._key);
   }
 
-  bool _active = false;
+  bool _active = false;  // state, maintained by onStart/onComplete, indicates whether speech is active.
 
   void _onComplete() {
-    _active = false;
     String? n = _next();
     if (n != null) {
+      print('speak: '+n);
+      _active = true; // this doubles up on what happens in _onStart, but that's OK, since if there's a delay initiating the _spk.speak, there is a race that can cause lost messages
       _spk.speak(n);
+    } else {
+      _active = false;
     }
   }
 
   void _onStart() {
-    _active = true;
+    _active = true; // see above, not strictly needed, but no harm done.
   }
 
 
@@ -67,8 +71,14 @@ class QSpeak {
   }
 
   // delegates:
+
+  // speechRate 1.0 is standard, 2.0 is double speed, etc
   setSpeechRate(double speechRate) => _spk.setSpeechRate(speechRate);
-  setVolume(double volume) => _spk.setVolume(volume);
+
+  // volume: range 1 .. 10
+  setVolume(int volume) => _spk.setVolume(volume*.1);
+
+  // pitch 1.0 is normal
   setPitch(double pitch) => _spk.setPitch(pitch);
 
   Future<void> stop() async => _spk.stop();
@@ -94,5 +104,10 @@ class _SpeakItem implements Comparable<_SpeakItem> {
 
   @override int compareTo(_SpeakItem other) {
     return this._priority.index.compareTo(other._priority.index);
+  }
+
+  @override
+  String toString() {
+    return '_SpeakItem{_priority: $_priority, _key: $_key}';
   }
 }
