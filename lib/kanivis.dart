@@ -1036,12 +1036,12 @@ $st""");
 
   Map<Mode, List<_LabelledAction>> _initMenus() => {
     Mode.Cmd : [
-      _l('App Wind', _apparentWind),
+      _l('Apparent Wind', _apparentWind),
       _l('True Wind', _trueWind),
-      _l('AIS', _aisInfo),
+      _l('A I S', _aisInfo),
 
       _l('Pos', _pos),
-      _l('UTC', _utc),
+      _l('U T C', _utc),
       _l('Waypoint', _waypoint),
 
       _l('Heading', _heading),
