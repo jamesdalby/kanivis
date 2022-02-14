@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:kanivis/offcourse.dart';
 import 'package:kanivis/qspeak.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:geolocator/geolocator.dart';
 import 'package:nmea/nmea.dart';
 
 class KanivisApp extends StatelessWidget {
@@ -295,6 +295,16 @@ class BusData {
       print('msg : ' + msg.runtimeType.toString());
     }
   }
+
+  void sensorPosition(Position? p) {
+    if (p == null) { return; }
+
+    _sog = p.speed*1.94384; // convert m/s to knots
+    _compass = p.heading.toInt();
+    _lat = DMS.latitude(p.latitude);
+    _lng = DMS.longitude(p.longitude);
+    _utc = p.timestamp;
+  }
 }
 
 class MyHomePage extends StatefulWidget {
@@ -425,6 +435,7 @@ class _MyHomePageState extends State<MyHomePage> {
   OffCourse _offCourse = OffCourse.Off;
 
   late Map<Mode, List<_LabelledAction>> _menus;
+  late StreamSubscription<Position> _positionStream;
 
   _MyHomePageState() {
     _menus = _initMenus();
@@ -437,12 +448,24 @@ class _MyHomePageState extends State<MyHomePage> {
       _depthPref = _prefs.getString('kanivis.depthPreference')??'DBS';
 
       _nmea = new NMEASocketReader(
-        _prefs.getString('kanivis.host')??'dealingtechnology.com',
-        _prefs.getInt('kanivis.port')??10110
+          _prefs.getString('kanivis.host') ?? 'dealingtechnology.com',
+          _prefs.getInt('kanivis.port') ?? 10110
       );
 
-      _nmea.process( _busData.handleNMEA);
+      // Here we can connect to the local (phone/tablet) sensors if NMEA not available,
+      // including: GPS, (Time), Course, SOG
+      if (_prefs.getBool('kanivis.deviceSensors')??true) {
+        final LocationSettings locationSettings = LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 0,
+        );
+        _positionStream = Geolocator.getPositionStream(
+            locationSettings: locationSettings
+        ).listen(_busData.sensorPosition);
 
+      } else {
+        _nmea.process(_busData.handleNMEA);
+      }
       Timer.periodic(Duration(seconds: 1), (t) => _checkHdg());
     });
   }
@@ -528,7 +551,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         context,
                         MaterialPageRoute(
                             builder: (BuildContext context) =>
-                                CommsSettings(_nmea))
+                                CommsSettings(_nmea, _prefs))
                     ).then((var s) async {
                       print("$s ${s.host}:${s.port}");
                       _prefs.setString('kanivis.host', s.host);
@@ -1232,6 +1255,14 @@ class _CommsSettingsState extends State<CommsSettings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              CheckboxListTile(
+              value: widget._prefs.getBool('kanivis.deviceSensors')??false,
+              onChanged: (v)=>widget._prefs.setBool('kanivis.deviceSensors', v??false),
+              // more needed: need to reinitialise the nmea reader and or geolocation reader
+
+              title: Text("Use phone or tablets own sensors"),
+              ),
+
               TextFormField(
                 controller: _hc,
                 decoration: InputDecoration(
@@ -1280,7 +1311,8 @@ class _CommsSettingsState extends State<CommsSettings> {
 
 class CommsSettings extends StatefulWidget {
   final NMEASocketReader _nmea;
-  CommsSettings(this._nmea);
+  final SharedPreferences _prefs;
+  CommsSettings(this._nmea, this._prefs);
 
   @override State<StatefulWidget> createState() => _CommsSettingsState();
 }
