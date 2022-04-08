@@ -4,11 +4,12 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:kanivis/offcourse.dart';
 import 'package:kanivis/qspeak.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:geolocator/geolocator.dart';
+// import 'package:geolocator/geolocator.dart';
 import 'package:nmea/nmea.dart';
 
 class KanivisApp extends StatelessWidget {
@@ -176,7 +177,7 @@ class BusData {
 
     if (msg is RMB) {
       // TODO: Cansider also using BWR, BWC for recording waypoint info?
-      _btw = msg.bearingToDestination?.toInt();
+      _btw = msg.bearingToDestination.toInt();
       _dtw = msg.rangeToDestination;
       _xte = msg.crossTrackError;
       _vmw = msg.destinationClosingVelocity;
@@ -190,7 +191,7 @@ class BusData {
       _utc = msg.utc;
 
     } else if (msg is VTG) {
-      _cog = msg.cogTrue?.round();
+      _cog = msg.cogTrue.round();
       _sog = msg.sog;
 
     } else if (msg is DPT) {
@@ -226,7 +227,7 @@ class BusData {
       } else {
         _awa = msg.windAngleToBow?.toInt();
         _aws = msg.windSpeed;
-	      _tack = msg.tack;
+        _tack = msg.tack;
       }
 
     } else if (msg is VHW) {
@@ -287,9 +288,7 @@ class BusData {
 
     } else if (msg is XTE) {
       // cross track error
-      if (msg.crossTrackError != null) {
-        _xte = msg.crossTrackError! * (msg.directionToSteer == 'L' ? 1 : -1);
-      }
+      _xte = msg.crossTrackError * (msg.directionToSteer == 'L' ? 1 : -1);
 
     } else {
       print('msg : ' + msg.runtimeType.toString());
@@ -352,7 +351,10 @@ class _MyHomePageState extends State<MyHomePage> {
   /// incoming NMEA data stashed in here.
   BusData _busData = new BusData();
 
+  // Only one of _nmea and _positionStream can be non-null
   late NMEASocketReader _nmea;
+  Stream<Position>? _positionStream;
+  StreamSubscription<Position>? _positionStreamSubscription;
 
   /// current user-defined target course or target wind angle, used to detect deviation therefrom.
   int? _target;
@@ -360,6 +362,7 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _depthReport = true;
 
   static double _pitch = 1;
+
   static double get pitch => _pitch;
 
   static set pitch(double v) => _pitch = limit(v, .5, 2.0);
@@ -435,7 +438,7 @@ class _MyHomePageState extends State<MyHomePage> {
   OffCourse _offCourse = OffCourse.Off;
 
   late Map<Mode, List<_LabelledAction>> _menus;
-  late StreamSubscription<Position> _positionStream;
+  // late StreamSubscription<Position> _positionStream;
 
   _MyHomePageState() {
     _menus = _initMenus();
@@ -447,25 +450,31 @@ class _MyHomePageState extends State<MyHomePage> {
       _sensitivity = _prefs.getInt('kanivis.sensitivity') ?? 5;
       _depthPref = _prefs.getString('kanivis.depthPreference')??'DBS';
 
+      // This doesn;t actually connect, just sets up...
       _nmea = new NMEASocketReader(
           _prefs.getString('kanivis.host') ?? 'dealingtechnology.com',
-          _prefs.getInt('kanivis.port') ?? 10110
+          _prefs.getInt('kanivis.port') ?? 10110,
+          _busData.handleNMEA
       );
 
-      // Here we can connect to the local (phone/tablet) sensors if NMEA not available,
-      // including: GPS, (Time), Course, SOG
-      if (_prefs.getBool('kanivis.deviceSensors')??true) {
-        final LocationSettings locationSettings = LocationSettings(
+      if (_prefs.getBool('kanivis.deviceSensors')??false) {
+        // Here we can connect to the local (phone/tablet) sensors if NMEA not available,
+        // including: GPS, (Time), Course, SOG
+
+        final LocationSettings locationSettings = const LocationSettings(
           accuracy: LocationAccuracy.high,
           distanceFilter: 0,
         );
         _positionStream = Geolocator.getPositionStream(
             locationSettings: locationSettings
-        ).listen(_busData.sensorPosition);
+        );
+        _positionStreamSubscription = _positionStream!.listen(_busData.sensorPosition);
 
       } else {
-        _nmea.process(_busData.handleNMEA);
+        // This initiates the connection:
+        _nmea.process();
       }
+
       Timer.periodic(Duration(seconds: 1), (t) => _checkHdg());
     });
   }
@@ -550,14 +559,43 @@ class _MyHomePageState extends State<MyHomePage> {
                     Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (BuildContext context) =>
-                                CommsSettings(_nmea, _prefs))
+                            builder: (BuildContext context) => CommsSettings(_nmea, _prefs)
+                        )
                     ).then((var s) async {
+                      if (s == null) {
+                        print("No change");
+                        return;
+                      }
                       print("$s ${s.host}:${s.port}");
                       _prefs.setString('kanivis.host', s.host);
                       _prefs.setInt('kanivis.port', s.port);
-                      _nmea.hostname = s.host;
-                      _nmea.port = s.port;
+                      _prefs.setBool('kanivis.deviceSensors', s.sensors);
+                      if (s.sensors) {
+                        // enable device sensors, disable NMEA stream
+                        _nmea.active = false;
+                        if (_positionStreamSubscription == null) {
+                          if (_positionStream == null) {
+                            final LocationSettings locationSettings = const LocationSettings(
+                              accuracy: LocationAccuracy.high,
+                              distanceFilter: 0,
+                            );
+                            _positionStream = Geolocator.getPositionStream(
+                                locationSettings: locationSettings
+                            );
+                          }
+                          _positionStreamSubscription = _positionStream!.listen(_busData.sensorPosition);
+                        } else {
+                          _positionStreamSubscription!.resume();
+                        }
+
+                      } else {
+                        await _positionStreamSubscription?.cancel();
+                        _positionStreamSubscription = null;
+
+                        _nmea.hostname = s.host;
+                        _nmea.port = s.port;
+                        _nmea.active = true;
+                      }
                     });
                   })
             ])),
@@ -831,7 +869,7 @@ $st""");
 
     switch (_steer) {
       case Steer.None:
-        // 'Can't happen'?
+      // 'Can't happen'?
         return;
 
       case Steer.Wind:
@@ -881,7 +919,7 @@ $st""");
   }
 
   void _setSpeechRate(double chg) {
-     speechRate += chg;
+    speechRate += chg;
     _spk.setSpeechRate(speechRate);
     _spk.add(SpeakPriority.Application, 'RATE', "rate ${speechRate.toStringAsFixed(1)}");
   }
@@ -982,7 +1020,7 @@ $st""");
         break;
 
       default:
-        // can't happen
+      // can't happen
         _target = null;
         break;
     }
@@ -1003,25 +1041,25 @@ $st""");
 
     switch (_offCourse) {
       case OffCourse.Off:
-        // disable timer
+      // disable timer
         _offCourseTimer?.cancel();
         _offCourseTimer = null;
         return;
 
       case OffCourse.Beep:
-        // beep with increasing rapidity as we go further off course, sign indicates high beep or low beep tone.
+      // beep with increasing rapidity as we go further off course, sign indicates high beep or low beep tone.
         _offCourseBeep(_err?.sign??0);
         break;
 
       case OffCourse.Hint:
-        // indicate whether we're off with timing dependent on urgency, same as 'Periodic' but with timing dependent on error
+      // indicate whether we're off with timing dependent on urgency, same as 'Periodic' but with timing dependent on error
 
       case OffCourse.Periodic:
-        // report course/angle with periodicity dependent only on sensitivity
+      // report course/angle with periodicity dependent only on sensitivity
         switch (_steer) {
           case Steer.Compass:
             _spk.add(SpeakPriority.General, 'TGT', _hdg(_busData.compass));
-           break;
+            break;
 
           case Steer.Wind:
             _spk.add(SpeakPriority.General, 'TGT', _hdg(_busData.awa) + ' ' + (_busData.tack??''));
@@ -1042,7 +1080,7 @@ $st""");
               // error interpretation : you are too far to ...
               _spk.add(SpeakPriority.General, 'TGT', _err!.abs().toStringAsFixed(0) + (_err! < 0 ? " Port" : " Starboard"));
             }
-           break;
+            break;
           default: // can't happen
         }
         break;
@@ -1166,21 +1204,21 @@ $st""");
     _depthPref = _depthPrefs[d];
 
     String dw = '';
-   switch (_depthPref) {
+    switch (_depthPref) {
 
-     case 'DBT': dw = 'Transducer'; break;
-     case 'DBK': dw = 'Keel'; break;
-     case 'DBS': dw = 'Surface'; break;
+      case 'DBT': dw = 'Transducer'; break;
+      case 'DBK': dw = 'Keel'; break;
+      case 'DBS': dw = 'Surface'; break;
     }
     _spk.immediate(dw);
     _prefs.setString('kanivis.depthPreference', _depthPref);
 
-   _depth();
+    _depth();
 
   }
 
   void _steerGuidance() =>
-  _spk.immediate('''
+      _spk.immediate('''
 Middle column for compass.
 Right column for wind-angle.
 
@@ -1236,72 +1274,111 @@ Enter, return to command mode.
 
 class _CommsSettingsState extends State<CommsSettings> {
   String get host => _hc.text..trim();
-
   int get port => int.parse(_pc.text..trim());
+  bool sensors;
 
-  TextEditingController _hc = TextEditingController();
-  TextEditingController _pc = TextEditingController();
+  TextEditingController _hc;
+  TextEditingController _pc;
 
   final _formKey = GlobalKey<FormState>();
 
+  _CommsSettingsState(NMEASocketReader nmea, SharedPreferences prefs) :
+        _hc = TextEditingController()..text = nmea.hostname,
+        _pc = TextEditingController()..text = nmea.port.toString(),
+        sensors = prefs.getBool('kanivis.deviceSensors')??false;
+
+  @override void dispose() {
+    super.dispose();
+    _hc.dispose();
+    _pc.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    _hc.text = widget._nmea.hostname;
-    _pc.text = widget._nmea.port.toString();
+    final ThemeData theme = Theme.of(context);
+    final TextStyle? disabled = theme.textTheme.subtitle1?.copyWith(
+      color: theme.disabledColor,
+    );
     return Scaffold(
+
         appBar: AppBar(title: Text('Settings')),
         body: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              CheckboxListTile(
-              value: widget._prefs.getBool('kanivis.deviceSensors')??false,
-              onChanged: (v)=>widget._prefs.setBool('kanivis.deviceSensors', v??false),
-              // more needed: need to reinitialise the nmea reader and or geolocation reader
-
-              title: Text("Use phone or tablets own sensors"),
-              ),
-
-              TextFormField(
-                controller: _hc,
-                decoration: InputDecoration(
-                    counterText: 'Hostname or IP address',
-                    hintText: 'Hostname'),
-                validator: (value) {
-                  if (value?.isEmpty??true) {
-                    return 'Please enter some text';
-                  }
-                  return null;
-                },
-              ),
-              TextFormField(
-                controller: _pc,
-                decoration: InputDecoration(
-                    counterText: 'Port number',
-                    hintText: 'Port number'),
-                validator: (value) {
-                  try {
-                    if (value != null && (int.tryParse(value)??0) > 0) {
-                      return null;
-                    }
-                  } catch (err) {}
-                  return 'Please enter positive number';
-                },
-              ),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState?.validate() == true) {
-                      Navigator.of(context).pop(this);
-                    }
-                  },
-                  child: Text('Submit'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                CheckboxListTile(
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: sensors,
+                  // The change is recorded here, but processed (switching between readers)
+                  // in the calling function.
+                  onChanged: (v)=>setState(() => sensors = v!),
+                  title: Text("Use phone or tablet built-in sensors"),
                 ),
-              ),
-            ],
+
+                Container(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'NMEA network source',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10.0),
+                          ),
+                        ),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              TextFormField(
+                                enabled: !sensors,
+                                style: sensors ? disabled : null,
+                                controller: _hc,
+                                decoration: InputDecoration(
+                                    counterText: 'Hostname or IP address',
+                                    hintText: 'Hostname'
+                                ),
+                                validator: (value) {
+                                  if (value?.isEmpty??true) {
+                                    return 'Please enter some text';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              TextFormField(
+                                enabled: !sensors,
+                                style: sensors ? disabled : null,
+                                controller: _pc,
+                                decoration: InputDecoration(
+                                    counterText: 'Port number',
+                                    hintText: 'Port number'
+                                ),
+                                validator: (value) {
+                                  try {
+                                    if (value != null && (int.tryParse(value)??0) > 0) {
+                                      return null;
+                                    }
+                                  } catch (err) {}
+                                  return 'Please enter positive number';
+                                },
+                              )
+                            ]
+                        )
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: ElevatedButton(
+                        onPressed: ()=>Navigator.of(context).pop(this),
+                        child: Text("Save"),
+
+
+                    ),
+                  ),
+                )
+              ]
           ),
         ));
   }
@@ -1314,7 +1391,7 @@ class CommsSettings extends StatefulWidget {
   final SharedPreferences _prefs;
   CommsSettings(this._nmea, this._prefs);
 
-  @override State<StatefulWidget> createState() => _CommsSettingsState();
+  @override State<StatefulWidget> createState() => _CommsSettingsState(_nmea, _prefs);
 }
 
 
@@ -1327,17 +1404,17 @@ class _LabelledAction {
   _LabelledAction(this.label, this.onPress, { this.longPress });
 
   get w => Expanded(
-        child: ElevatedButton(
-            onPressed: onPress,
-            onLongPress: longPress,
-            child: Center(
-                child:
-                Text(
-                    label.call(),
-                    style: TextStyle(fontSize: 14),
-                    textAlign: TextAlign.center
-                )
-            )
-        )
-    );
+      child: ElevatedButton(
+          onPressed: onPress,
+          onLongPress: longPress,
+          child: Center(
+              child:
+              Text(
+                  label.call(),
+                  style: TextStyle(fontSize: 14),
+                  textAlign: TextAlign.center
+              )
+          )
+      )
+  );
 }

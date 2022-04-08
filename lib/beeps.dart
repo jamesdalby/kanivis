@@ -1,6 +1,6 @@
-import 'dart:typed_data';
+// ignore_for_file: import_of_legacy_library_into_null_safe
 
-// import 'package:audioplayers/audioplayers.dart';
+import 'dart:typed_data';
 import 'package:wave_generator/wave_generator.dart';
 
 void main() async {

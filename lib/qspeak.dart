@@ -1,10 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
-/**
- * Priority queue of items to dispatch
- *
- */
+/// Priority queue of items to dispatch
 class QSpeak {
   static FlutterTts _spk = FlutterTts();
   static PriorityQueue<_SpeakItem> q = PriorityQueue(); // q of items, priority order.  Depth beats everything, for instance.
@@ -31,9 +28,7 @@ class QSpeak {
     }
   }
 
-  /**
-   * Remove the next item in the priority queue and return its message.
-   */
+  /// Remove the next item in the priority queue and return its message.
   String? _next() {
     if (_immediate.isNotEmpty) {
       final String ret = _immediate.first;
