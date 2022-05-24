@@ -24,6 +24,8 @@ dependencies:
   collection: ^1.15.0
   wave_generator: ^0.1.0
   geolocator: ^8.2.0
+  flutter_compass: ^0.7.0
+  permission_handler: ^9.2.0
 
 dev_dependencies:
   flutter_test:

@@ -4,10 +4,12 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:kanivis/offcourse.dart';
 import 'package:kanivis/qspeak.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // import 'package:geolocator/geolocator.dart';
 import 'package:nmea/nmea.dart';
@@ -299,10 +301,20 @@ class BusData {
     if (p == null) { return; }
 
     _sog = p.speed*1.94384; // convert m/s to knots
-    _compass = p.heading.toInt();
+    _cog = p.heading.toInt();
+    // print (p.heading.toStringAsFixed(1));
     _lat = DMS.latitude(p.latitude);
     _lng = DMS.longitude(p.longitude);
     _utc = p.timestamp;
+  }
+
+  void compassEvent(CompassEvent e) {
+
+    int? h = e.heading?.toInt();
+    if (h == null) return;
+
+    if (h < 0) h = 360 + h;
+    _compass = h;
   }
 }
 
@@ -342,6 +354,9 @@ enum Steer { None, Compass, Wind }
 enum OffCourse { Off, Periodic, Hint, Error, Beep }
 
 class _MyHomePageState extends State<MyHomePage> {
+  // permissions check, refrenced if we're using device sensors
+  bool _hasPermissions = false;
+
   // initialise test-to-speech magic
   static QSpeak _spk = QSpeak();
 
@@ -355,6 +370,7 @@ class _MyHomePageState extends State<MyHomePage> {
   late NMEASocketReader _nmea;
   Stream<Position>? _positionStream;
   StreamSubscription<Position>? _positionStreamSubscription;
+  StreamSubscription<CompassEvent>? _compassSub;
 
   /// current user-defined target course or target wind angle, used to detect deviation therefrom.
   int? _target;
@@ -394,13 +410,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
     _spk.immediate('Knowles Audible Navigation Information for Visually Impaired Sailors');
   }
-
-  /// Speak the given text aloud
-  // void _speak(String text, [bool noInteruption = false]) async {
-  //   // TODO: uninterruptible TTS - depth (and beeps?)
-  //   print(text);
-  //   await spk.speak(text);
-  // }
 
   static late AudioPlayer _audioPlayer;
   static late AudioCache _audioCache;
@@ -450,7 +459,7 @@ class _MyHomePageState extends State<MyHomePage> {
       _sensitivity = _prefs.getInt('kanivis.sensitivity') ?? 5;
       _depthPref = _prefs.getString('kanivis.depthPreference')??'DBS';
 
-      // This doesn;t actually connect, just sets up...
+      // This doesn't actually connect, just sets up...
       _nmea = new NMEASocketReader(
           _prefs.getString('kanivis.host') ?? 'dealingtechnology.com',
           _prefs.getInt('kanivis.port') ?? 10110,
@@ -460,6 +469,8 @@ class _MyHomePageState extends State<MyHomePage> {
       if (_prefs.getBool('kanivis.deviceSensors')??false) {
         // Here we can connect to the local (phone/tablet) sensors if NMEA not available,
         // including: GPS, (Time), Course, SOG
+
+        // make sure we have permissions:
 
         final LocationSettings locationSettings = const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -573,24 +584,26 @@ class _MyHomePageState extends State<MyHomePage> {
                       if (s.sensors) {
                         // enable device sensors, disable NMEA stream
                         _nmea.active = false;
-                        if (_positionStreamSubscription == null) {
-                          if (_positionStream == null) {
-                            final LocationSettings locationSettings = const LocationSettings(
-                              accuracy: LocationAccuracy.high,
-                              distanceFilter: 0,
-                            );
-                            _positionStream = Geolocator.getPositionStream(
-                                locationSettings: locationSettings
-                            );
-                          }
-                          _positionStreamSubscription = _positionStream!.listen(_busData.sensorPosition);
-                        } else {
-                          _positionStreamSubscription!.resume();
+
+
+                        if (_positionStream == null) {
+                          final LocationSettings locationSettings = const LocationSettings(
+                            accuracy: LocationAccuracy.high,
+                            distanceFilter: 0,
+                          );
+                          _positionStream = Geolocator.getPositionStream(
+                            locationSettings: locationSettings
+                          );
                         }
+                        _positionStreamSubscription?.cancel();
+                        _positionStreamSubscription = _positionStream!.listen(_busData.sensorPosition);
+
+                        _compassSub?.cancel();
+                        _compassSub = FlutterCompass.events?.listen(_busData.compassEvent);
 
                       } else {
+                        await _compassSub?.cancel();
                         await _positionStreamSubscription?.cancel();
-                        _positionStreamSubscription = null;
 
                         _nmea.hostname = s.host;
                         _nmea.port = s.port;
@@ -693,9 +706,11 @@ class _MyHomePageState extends State<MyHomePage> {
           _spk.immediate("No number was entered");
           // switch back to command node.
         } else {
+          _target ??= 0;
+
           switch (_rel) {
             case Rel.Neg:
-              _target = (_target??0 - _tot!) % 360; // XXX: check ??0 is sensible, also below
+              _target = _target! - _tot!;
               break;
 
             case Rel.Abs:
@@ -703,9 +718,12 @@ class _MyHomePageState extends State<MyHomePage> {
               break;
 
             case Rel.Pos:
-              _target = (_target??0 + _tot!) % 360;
+              _target = _target! + _tot!;
               break;
           }
+          _target = _target! % 360;
+
+
           switch (_steer) {
             case Steer.Wind:
               _spk.add(SpeakPriority.General, 'TGN', "Target wind angle ${_hdg(_target)}");
@@ -716,6 +734,7 @@ class _MyHomePageState extends State<MyHomePage> {
               break;
 
             default:
+              _spk.add(SpeakPriority.General, 'TGN', 'No steer mode is set currently, so number entry will be ignored');
               break;
           }
         }
@@ -1020,7 +1039,8 @@ $st""");
         break;
 
       default:
-      // can't happen
+        // can't happen
+        _spk.add(SpeakPriority.General, 'TGN', "Steer mode silenced and reset");
         _target = null;
         break;
     }
@@ -1163,7 +1183,7 @@ $st""");
     Mode.Steer: [
       _l('Guidance', _steerGuidance),
       _l('Compass', ()=>_steerUsing(Steer.Compass, OffCourse.Periodic)),
-      _l('Wind', ()=>_steerUsing(Steer.Compass, OffCourse.Periodic)),
+      _l('Wind', ()=>_steerUsing(Steer.Wind, OffCourse.Periodic)),
 
       _noop(),
       _l('Hint (C)', ()=>_steerUsing(Steer.Compass, OffCourse.Hint)),
@@ -1307,14 +1327,23 @@ class _CommsSettingsState extends State<CommsSettings> {
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                CheckboxListTile(
-                  controlAffinity: ListTileControlAffinity.leading,
-                  value: sensors,
-                  // The change is recorded here, but processed (switching between readers)
-                  // in the calling function.
-                  onChanged: (v)=>setState(() => sensors = v!),
-                  title: Text("Use phone or tablet built-in sensors"),
-                ),
+                // CheckboxListTile(
+                //   controlAffinity: ListTileControlAffinity.leading,
+                //   value: sensors,
+                //   // The change is recorded here, but processed (switching between readers)
+                //   // in the calling function.
+                //   onChanged: (v) async {
+                //     if (v!) {
+                //       PermissionStatus lwiu = await Permission.locationWhenInUse.request();
+                //       if (lwiu != PermissionStatus.granted) {
+                //         await openAppSettings();
+                //       }
+                //       v = await Permission.locationWhenInUse.request() == PermissionStatus.granted;
+                //     }
+                //     setState(() => sensors = v!);
+                //   },
+                //   title: Text("Use phone or tablet built-in sensors"),
+                // ),
 
                 Container(
                   child: Padding(
