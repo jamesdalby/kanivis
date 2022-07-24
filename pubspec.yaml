@@ -5,13 +5,15 @@ version: 1.0.0+4
 
 environment:
   sdk: ">=2.12.0 <3.0.0"
-
+  
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_tts: ^3.2.4
-  intl:
-  shared_preferences:
+  intl: null
+  shared_preferences: null
   audioplayers: ^0.20.1
   nmea:
     git:
@@ -29,6 +31,9 @@ dependencies:
   flutter_compass: ^0.7.0
   permission_handler: ^9.2.0
 
+  
+  provider: ^5.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -45,3 +50,5 @@ flutter:
 
   assets:
     - assets/beeps/
+flutter_intl:
+  enabled: true

@@ -14,15 +14,48 @@ import 'package:shared_preferences/shared_preferences.dart';
 // import 'package:geolocator/geolocator.dart';
 import 'package:nmea/nmea.dart';
 
+import 'package:provider/provider.dart';
+
+import 'constants.dart';
+
+// use for localization and need "Flutter Intl" plugin
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'generated/l10n.dart';
+
 class KanivisApp extends StatelessWidget {
+  String getStringValues(String key, String def) {
+    String result = def;
+
+    SharedPreferences.getInstance().then((value) {
+      result = value.getString(key) ?? def;
+    });
+
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+    //Locale locale = Locale("fr");
+    Locale locale = Locale(Platform.localeName.substring(0, 2));
+
     return MaterialApp(
+        locale: locale,
+        localizationsDelegates: [
+          S.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: [
+          const Locale('en', 'US'), // English
+          const Locale('fr', 'FR'), // French
+        ],
+        //supportedLocales: S.delegate.supportedLocales,
         title: 'KANIVIS',
         theme: ThemeData(primarySwatch: Colors.blue),
-        home: MyHomePage()
-    );
+        home: MyHomePage());
   }
 }
 
@@ -42,19 +75,23 @@ class DMS {
     String v = nesw;
     switch (nesw.toLowerCase()) {
       case 'n':
-        v = 'north';
+        v = S.current.north;
         break;
       case 'e':
-        v = 'east';
+        v = S.current.east;
         break;
       case 'w':
-        v = 'west';
+        v = S.current.west;
         break;
       case 's':
-        v = 'south';
+        v = S.current.south;
         break;
     }
-    return "$deg degrees, ${_dp1(ms)} minutes $v";
+    return "$deg " +
+        S.current.degrees +
+        ", ${_dp1(ms)} " +
+        S.current.minutes +
+        " $v";
   }
 
   static DMS? latitude(double? lat) {
@@ -125,9 +162,12 @@ class BusData {
 
   double? depth(String sel) {
     switch (sel) {
-      case 'DBS': return _dbs;
-      case 'DBK': return _dbk;
-      case 'DBT': return _dbt;
+      case 'DBS':
+        return _dbs;
+      case 'DBK':
+        return _dbk;
+      case 'DBT':
+        return _dbt;
     }
     return null;
   }
@@ -157,19 +197,19 @@ class BusData {
   // Cross track error as a string suitable for speaking using TTS
   String get xte {
     if (_xte == null) {
-      return "Unavailable";
+      return S.current.Unavailable;
     }
     if (_xte! < 0) {
-      return (-_xte!).toStringAsFixed(2) + ", to port";
+      return (-_xte!).toStringAsFixed(2) + ", " + S.current.toPort;
     }
-    return _xte!.toStringAsFixed(2) + ", to starboard";
+    return _xte!.toStringAsFixed(2) + ", " + S.current.toStarboard;
   }
 
   double? get vmw => _vmw;
 
   void handleNMEA(var msg) {
     // arriving message - exciting!
-    // print(msg.toString());
+    print(msg.toString());
 
     // Pos is a mixin, not exclusive:
     if (msg is Pos) {
@@ -184,35 +224,33 @@ class BusData {
       _xte = msg.crossTrackError;
       _vmw = msg.destinationClosingVelocity;
       _wpt = msg.destinationWaypointID;
-
     } else if (msg is RMC) {
       _lat = DMS.latitude(msg.position.lat);
       _lng = DMS.longitude(msg.position.lng);
       _sog = msg.sog;
       // _vmg = m.trackMadeGood; // XXX
       _utc = msg.utc;
-
     } else if (msg is VTG) {
       _cog = msg.cogTrue.round();
       _sog = msg.sog;
-
     } else if (msg is DPT) {
-
-      if (msg.depthKeel != null) { _dbk = msg.depthKeel; }
-      if (msg.depthTransducer != null) { _dbt = msg.depthTransducer; }
-      if (msg.depthSurface != null) { _dbs = msg.depthSurface; }
-
+      if (msg.depthKeel != null) {
+        _dbk = msg.depthKeel;
+      }
+      if (msg.depthTransducer != null) {
+        _dbt = msg.depthTransducer;
+      }
+      if (msg.depthSurface != null) {
+        _dbs = msg.depthSurface;
+      }
     } else if (msg is DBT) {
       _dbt = msg.metres;
-
     } else if (msg is DBS) {
       // depth below surface
       _dbs = msg.depthSurface;
-
     } else if (msg is DBK) {
       // depth below keel
       _dbk = msg.depthKeel;
-
     } else if (msg is HDG) {
       _compass = msg.heading?.toInt();
       // _heading = msg.trueHeading.toInt();
@@ -225,13 +263,13 @@ class BusData {
       if (msg.isTrue) {
         _twa = msg.windAngleToBow?.toInt();
         _tws = msg.windSpeed;
-        _tack = msg.tack; // slightly dodgy, maybe? distinguish twa and awa tacks?  Not sure it matters that much.
+        _tack = msg
+            .tack; // slightly dodgy, maybe? distinguish twa and awa tacks?  Not sure it matters that much.
       } else {
         _awa = msg.windAngleToBow?.toInt();
         _aws = msg.windSpeed;
         _tack = msg.tack;
       }
-
     } else if (msg is VHW) {
       _bsp = msg.boatspeedKnots;
       if (msg.headingTrue != null) {
@@ -243,7 +281,6 @@ class BusData {
 
     } else if (msg is ZDA) {
       _utc = msg.utc;
-
     } else if (msg is MWD) {
       _tws = msg.trueWindSpeedKnots;
       //  _twd = msg.trueWindDirection;
@@ -284,23 +321,23 @@ class BusData {
     } else if (msg is VLW) {
       _trip = msg.resetDistance;
       _gpsTrip = msg.cumulativeGroundDistance;
-
     } else if (msg is XDR) {
       // transducer measurement, currently not interesting
 
     } else if (msg is XTE) {
       // cross track error
       _xte = msg.crossTrackError * (msg.directionToSteer == 'L' ? 1 : -1);
-
     } else {
       print('msg : ' + msg.runtimeType.toString());
     }
   }
 
   void sensorPosition(Position? p) {
-    if (p == null) { return; }
+    if (p == null) {
+      return;
+    }
 
-    _sog = p.speed*1.94384; // convert m/s to knots
+    _sog = p.speed * 1.94384; // convert m/s to knots
     _cog = p.heading.toInt();
     // print (p.heading.toStringAsFixed(1));
     _lat = DMS.latitude(p.latitude);
@@ -309,7 +346,6 @@ class BusData {
   }
 
   void compassEvent(CompassEvent e) {
-
     int? h = e.heading?.toInt();
     if (h == null) return;
 
@@ -328,7 +364,7 @@ class MyHomePage extends StatefulWidget {
 /// Convert [num] to a three digit (zero padded) number suitable for passing to TTS
 String _hdg(int? num) {
   if (num == null) {
-    return "Unavailable";
+    return S.current.Unavailable;
   }
   return num.toString().padLeft(3, '0').split('').join(' ');
 }
@@ -336,7 +372,7 @@ String _hdg(int? num) {
 /// Convert [num] to a decimal with 1 digit after the decimal point
 String _dp1(double? num) {
   if (num == null) {
-    return "Unavailable";
+    return S.current.Unavailable;
   }
   return num.toStringAsFixed(1);
 }
@@ -395,20 +431,23 @@ class _MyHomePageState extends State<MyHomePage> {
 
   /// initialise text-to-speech stuff to default/sensible values
   static _initTTS() async {
-    // await spk.setLanguage("en-US");
+    await _spk.setLanguage(_prefs.getString(PREFS_LANGUAGE) ?? "en");
+
     // await spk.setVoice()
 
     // print(await spk.getVoices);
-    speechRate = (_prefs.get('kanivis.speechRate') as double?)??(Platform.isAndroid ? 1.0 : 0.5);
+    speechRate = (_prefs.get(PREFS_SPEECH_RATE) as double?) ??
+        (Platform.isAndroid ? 1.0 : 0.5);
     await _spk.setSpeechRate(speechRate);
 
-    volume = (_prefs.get('kanivis.volume') as int?)??10;
+    volume = (_prefs.get(PREFS_VOLUME) as int?) ?? 10;
     await _spk.setVolume(volume);
 
-    pitch = (_prefs.get('kanivis.pitch') as double?)??1.0;
+    pitch = (_prefs.get(PREFS_PITCH) as double?) ?? 1.0;
     await _spk.setPitch(pitch);
 
-    _spk.immediate('Knowles Audible Navigation Information for Visually Impaired Sailors');
+    _spk.immediate(S.current.initialiseTextToSpeech);
+    //'Knowles Audible Navigation Information for Visually Impaired Sailors');
   }
 
   static late AudioPlayer _audioPlayer;
@@ -420,7 +459,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
     // _audioPlayer.onPlayerStateChanged.listen((e) => print("State $e"));
 
-    _audioCache = AudioCache(prefix: 'assets/beeps/', fixedPlayer: _audioPlayer);
+    _audioCache =
+        AudioCache(prefix: 'assets/beeps/', fixedPlayer: _audioPlayer);
 
     await _audioCache.loadAll([
       'high-1.wav',
@@ -456,17 +496,16 @@ class _MyHomePageState extends State<MyHomePage> {
 
       _initTTS();
       _initBeep();
-      _sensitivity = _prefs.getInt('kanivis.sensitivity') ?? 5;
-      _depthPref = _prefs.getString('kanivis.depthPreference')??'DBS';
+      _sensitivity = _prefs.getInt(PREFS_SENSITIVITY) ?? 5;
+      _depthPref = _prefs.getString(PREFS_DEPTH_PREFERENCE) ?? 'DBS';
 
       // This doesn't actually connect, just sets up...
       _nmea = new NMEASocketReader(
-          _prefs.getString('kanivis.host') ?? 'dealingtechnology.com',
-          _prefs.getInt('kanivis.port') ?? 10110,
-          _busData.handleNMEA
-      );
+          _prefs.getString(PREFS_NETWORK_HOST) ?? 'dealingtechnology.com',
+          _prefs.getInt(PREFS_NETWORK_PORT) ?? 10110,
+          _busData.handleNMEA);
 
-      if (_prefs.getBool('kanivis.deviceSensors')??false) {
+      if (_prefs.getBool(PREFS_DEVICE_SENSORS) ?? false) {
         // Here we can connect to the local (phone/tablet) sensors if NMEA not available,
         // including: GPS, (Time), Course, SOG
 
@@ -476,11 +515,10 @@ class _MyHomePageState extends State<MyHomePage> {
           accuracy: LocationAccuracy.high,
           distanceFilter: 0,
         );
-        _positionStream = Geolocator.getPositionStream(
-            locationSettings: locationSettings
-        );
-        _positionStreamSubscription = _positionStream!.listen(_busData.sensorPosition);
-
+        _positionStream =
+            Geolocator.getPositionStream(locationSettings: locationSettings);
+        _positionStreamSubscription =
+            _positionStream!.listen(_busData.sensorPosition);
       } else {
         // This initiates the connection:
         _nmea.process();
@@ -496,8 +534,11 @@ class _MyHomePageState extends State<MyHomePage> {
   int? _err;
 
   void _offCourseBeep(int sign) {
-    String p = sign<0 ? "high" : "low";
-    _audioCache.play('$p-1.wav').onError((error, stackTrace) { print(error.toString()); return _audioPlayer; });
+    String p = sign < 0 ? "high" : "low";
+    _audioCache.play('$p-1.wav').onError((error, stackTrace) {
+      print(error.toString());
+      return _audioPlayer;
+    });
   }
 
   void _checkHdg() {
@@ -541,7 +582,8 @@ class _MyHomePageState extends State<MyHomePage> {
           break;
         case Steer.Wind:
           if (_busData.awa != null) {
-            _err = _normalise(_busData.awa! - _target!); // prob dn't need normalise, but no harm
+            _err = _normalise(_busData.awa! -
+                _target!); // prob dn't need normalise, but no harm
             if (_busData.tack == 'Starboard') {
               _err = -_err!;
             }
@@ -563,110 +605,109 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
         drawer: Drawer(
             child: ListView(children: <Widget>[
-              ListTile(
-                  title: Text('Communications'),
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (BuildContext context) => CommsSettings(_nmea, _prefs)
-                        )
-                    ).then((var s) async {
-                      if (s == null) {
-                        print("No change");
-                        return;
-                      }
-                      print("$s ${s.host}:${s.port}");
-                      _prefs.setString('kanivis.host', s.host);
-                      _prefs.setInt('kanivis.port', s.port);
-                      _prefs.setBool('kanivis.deviceSensors', s.sensors);
-                      if (s.sensors) {
-                        // enable device sensors, disable NMEA stream
-                        _nmea.active = false;
+          ListTile(
+              title: Text(S.current.GUI_SettingsLocalization),
+              onTap: () async {
+                Navigator.of(context).pop();
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (BuildContext context) =>
+                            LocalizationSettings(_prefs))).then((var s) async {
+                  if (s == null) {
+                    print("No change");
+                    return;
+                  }
+                  _prefs.setString(PREFS_LOCALIZATION, s.localization);
+                  if (s.localization.length == 5) {
+                    _prefs.setString(
+                        PREFS_COUNTRY, s.localization.substring(3, 5));
+                    _prefs.setString(
+                        PREFS_LANGUAGE, s.localization.substring(0, 2));
+                  } else {
+                    _prefs.setString(PREFS_COUNTRY, "");
+                    _prefs.setString(PREFS_LANGUAGE, "");
+                  }
+                });
+              }),
+          ListTile(
+              title: Text('Communications'),
+              onTap: () async {
+                Navigator.of(context).pop();
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (BuildContext context) =>
+                            CommsSettings(_nmea, _prefs))).then((var s) async {
+                  if (s == null) {
+                    print("No change");
+                    return;
+                  }
+                  print("$s ${s.host}:${s.port}");
+                  _prefs.setString(PREFS_NETWORK_HOST, s.host);
+                  _prefs.setInt(PREFS_NETWORK_PORT, s.port);
+                  _prefs.setBool(PREFS_DEVICE_SENSORS, s.sensors);
+                  if (s.sensors) {
+                    // enable device sensors, disable NMEA stream
+                    _nmea.active = false;
 
+                    if (_positionStream == null) {
+                      final LocationSettings locationSettings =
+                          const LocationSettings(
+                        accuracy: LocationAccuracy.high,
+                        distanceFilter: 0,
+                      );
+                      _positionStream = Geolocator.getPositionStream(
+                          locationSettings: locationSettings);
+                    }
+                    _positionStreamSubscription?.cancel();
+                    _positionStreamSubscription =
+                        _positionStream!.listen(_busData.sensorPosition);
 
-                        if (_positionStream == null) {
-                          final LocationSettings locationSettings = const LocationSettings(
-                            accuracy: LocationAccuracy.high,
-                            distanceFilter: 0,
-                          );
-                          _positionStream = Geolocator.getPositionStream(
-                            locationSettings: locationSettings
-                          );
-                        }
-                        _positionStreamSubscription?.cancel();
-                        _positionStreamSubscription = _positionStream!.listen(_busData.sensorPosition);
+                    _compassSub?.cancel();
+                    _compassSub =
+                        FlutterCompass.events?.listen(_busData.compassEvent);
+                  } else {
+                    await _compassSub?.cancel();
+                    await _positionStreamSubscription?.cancel();
 
-                        _compassSub?.cancel();
-                        _compassSub = FlutterCompass.events?.listen(_busData.compassEvent);
-
-                      } else {
-                        await _compassSub?.cancel();
-                        await _positionStreamSubscription?.cancel();
-
-                        _nmea.hostname = s.host;
-                        _nmea.port = s.port;
-                        _nmea.active = true;
-                      }
-                    });
-                  })
-            ])),
+                    _nmea.hostname = s.host;
+                    _nmea.port = s.port;
+                    _nmea.active = true;
+                  }
+                });
+              })
+        ])),
         body:
-        // 3x5 grid of buttons
-        Container(
-            constraints: BoxConstraints.expand(),
-            color: Colors.redAccent,
-            child: Column(
-
-                children:
-                [
+            // 3x5 grid of buttons
+            Container(
+                constraints: BoxConstraints.expand(),
+                color: Colors.redAccent,
+                child: Column(children: [
                   Expanded(
-                    child: Row(
-                        children:[
-                          a[0].w, a[1].w, a[2].w
-                        ]
-                    ),
+                    child: Row(children: [a[0].w, a[1].w, a[2].w]),
                   ),
                   Expanded(
-                    child: Row(
-                        children:[
-                          a[3].w, a[4].w, a[5].w
-                        ]
-                    ),
+                    child: Row(children: [a[3].w, a[4].w, a[5].w]),
                   ),
                   Expanded(
-                    child: Row(
-                        children:[
-                          a[6].w, a[7].w, a[8].w
-                        ]
-                    ),
+                    child: Row(children: [a[6].w, a[7].w, a[8].w]),
                   ),
                   Expanded(
-                    child: Row(
-                        children:[
-                          a[9].w, a[10].w, a[11].w
-                        ]
-                    ),
+                    child: Row(children: [a[9].w, a[10].w, a[11].w]),
                   ),
                   Expanded(
-                    child: Row(
-                        children:[
-                          a[12].w, a[13].w, a[14].w
-                        ]
-                    ),
+                    child: Row(children: [a[12].w, a[13].w, a[14].w]),
                   ),
-                ]
-            )
-        )
-    );
+                ])));
   }
 
   void changeDepthReporting() {
     _depthReport = !_depthReport;
-    _spk.immediate("Depth warnings are now " + (_depthReport ? 'enabled' : 'silenced'));
+    _spk.immediate(S.current.DepthWarningsAreNow +
+        " " +
+        (_depthReport ? S.current.enabled : S.current.silenced));
   }
-
 
   int? _tot = 0;
   Rel _rel = Rel.Abs;
@@ -677,7 +718,7 @@ class _MyHomePageState extends State<MyHomePage> {
       // it's a digit, accumulate it
       _tot = (_tot ?? 0) * 10 + int.parse(n);
       if (_tot! > 359) {
-        _spk.immediate("Invalid number, returning to command mode");
+        _spk.immediate(S.current.InvalidNumberReturningToCommandMode);
         _rel = Rel.Abs;
         _tot = null;
         _setMode(Mode.Cmd);
@@ -687,14 +728,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
     switch (n) {
       case '-':
-        _spk.immediate('minus');
+        _spk.immediate(S.current.minus);
         if (_tot == null) {
           _rel = Rel.Neg;
         }
         break;
 
       case '+':
-        _spk.immediate('plus');
+        _spk.immediate(S.current.plus);
         if (_tot == null) {
           _rel = Rel.Pos;
         }
@@ -703,7 +744,7 @@ class _MyHomePageState extends State<MyHomePage> {
       case '=': // legacy
       case 'Set':
         if (_tot == null) {
-          _spk.immediate("No number was entered");
+          _spk.immediate(S.current.NoNumberWasEntered);
           // switch back to command node.
         } else {
           _target ??= 0;
@@ -723,37 +764,39 @@ class _MyHomePageState extends State<MyHomePage> {
           }
           _target = _target! % 360;
 
-
           switch (_steer) {
             case Steer.Wind:
-              _spk.add(SpeakPriority.General, 'TGN', "Target wind angle ${_hdg(_target)}");
+              _spk.add(SpeakPriority.General, 'TGN',
+                  S.current.TargetWindAngle + " ${_hdg(_target)}");
               break;
 
             case Steer.Compass:
-              _spk.add(SpeakPriority.General, 'TGN', "Target course ${_hdg(_target)}");
+              _spk.add(SpeakPriority.General, 'TGN',
+                  S.current.TargetCourse + " ${_hdg(_target)}");
               break;
 
             default:
-              _spk.add(SpeakPriority.General, 'TGN', 'No steer mode is set currently, so number entry will be ignored');
+              _spk.add(SpeakPriority.General, 'TGN',
+                  S.current.NoSteerModeIsSetCurrently);
               break;
           }
         }
         _tot = null;
         _setMode(Mode.Cmd);
         _rel = Rel.Abs;
-        _spk.immediate('Command mode');
+        _spk.immediate(S.current.CommandMode);
         break;
 
       case '*':
       case 'Reset':
-        _spk.immediate("Reset");
+        _spk.immediate(S.current.Reset);
         _rel = Rel.Abs;
         _tot = null;
         break;
 
       case '#':
       case 'Cancel':
-        _spk.immediate("Number entry cancelled, now in command mode");
+        _spk.immediate(S.current.NumberEntryCancelledNowInCommandMode);
         _rel = Rel.Abs;
         _tot = null;
         _setMode(Mode.Cmd);
@@ -763,22 +806,25 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _apparentWind() {
-    _spk.add(SpeakPriority.General, 'AWA', """
- A W A ${_hdg(_busData.awa)} ${_busData.tack ?? ''},
- A W S ${_dp1(_busData.aws)}
- """);
+    _spk.add(
+        SpeakPriority.General,
+        'AWA',
+        S.current.AWA +
+            " ${_hdg(_busData.awa)} ${_busData.tack ?? ''}, " +
+            S.current.AWS +
+            " ${_dp1(_busData.aws)}");
   }
 
   void _trueWind() {
     String? msg;
     if (_busData.twa != null) {
-      msg = "T W A " + _hdg(_busData.twa);
+      msg = S.current.TWA + " " + _hdg(_busData.twa);
       if (_busData.tack != null) {
         msg += " " + _busData.tack!;
       }
     }
     if (_busData.tws != null) {
-      String tws = "T W S "+_dp1(_busData.tws);
+      String tws = S.current.TWS + " " + _dp1(_busData.tws);
       if (msg != null) {
         msg += ", $tws";
       } else {
@@ -787,7 +833,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     if (msg == null) {
       // XXX consider calculating it from Apparent + trig on boat speed/direction
-      msg = "True wind unavailable";
+      msg = S.current.TrueWindUnavailable;
     }
     _spk.add(SpeakPriority.General, 'TWA', msg);
   }
@@ -795,7 +841,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void _aisInfo() {
     // XXX: Speak closest target by distance, by CPA and by TCPA
     // XXX: Toggle on/off announcement of changed target (hysteresis?)
-    _spk.immediate("A I S currently unimplemented, sorry");
+    _spk.immediate(S.current.AISCurrentlyUnimplemented);
   }
 
   void _pos() {
@@ -803,32 +849,49 @@ class _MyHomePageState extends State<MyHomePage> {
     DMS? la = _busData._lat;
     DMS? lo = _busData._lng;
     if (la == null || lo == null) {
-      _spk.add(SpeakPriority.General, 'POS', "Position Unavailable");
+      _spk.add(SpeakPriority.General, 'POS', S.current.PositionUnavailable);
       return;
     }
 
-    _spk.add(SpeakPriority.General, 'POS', "Lat ${la.toString()}, Long ${lo.toString()}");
+    _spk.add(
+        SpeakPriority.General,
+        'POS',
+        S.current.Lat +
+            " ${la.toString()}, " +
+            S.current.Long +
+            " ${lo.toString()}");
   }
 
   DateFormat _formatter = new DateFormat('H,mm,ss');
 
   void _utc() {
     // XXX: Add support for time offset/local time?
-    _spk.add(SpeakPriority.General, 'UTC', "UTC " + _formatter.format(_busData.utc ?? DateTime.now()));
+    _spk.add(
+        SpeakPriority.General,
+        'UTC',
+        S.current.UTC +
+            " " +
+            _formatter.format(_busData.utc ?? DateTime.now()));
   }
 
   void _waypoint() {
-    if ((_busData.wpt??'') == '') {
-      _spk.add(SpeakPriority.General, 'WPT', "No active waypoint");
+    if ((_busData.wpt ?? '') == '') {
+      _spk.add(SpeakPriority.General, 'WPT', S.current.NoActiveWaypoint);
       return;
     }
-    _spk.add(SpeakPriority.General, 'WPT',
-        """
-Waypoint ${_busData.wpt}
-B T W ${_hdg(_busData.btw)}, 
-D T W ${_dp1(_busData.dtw)},
-X T E ${_busData.xte}, 
-V M W ${_dp1(_busData.vmw)}""");
+    _spk.add(
+        SpeakPriority.General,
+        'WPT',
+        S.current.Waypoint +
+            " ${_busData.wpt}, " +
+            S.current.BTW +
+            " ${_hdg(_busData.btw)}, " +
+            S.current.DTW +
+            " ${_dp1(_busData.dtw)}, " +
+            S.current.XTE +
+            " ${_busData.xte}, " +
+            S.current.VMW +
+            " ${_dp1(_busData.vmw)}");
   }
 
   void _heading() {
@@ -836,39 +899,56 @@ V M W ${_dp1(_busData.vmw)}""");
     String st = "";
     if (_target != null) {
       if (_steer == Steer.Compass) {
-        st = "Target compass course ${_hdg(_target)}";
+        st = S.current.TargetCompassCourse + " ${_hdg(_target)}";
       } else if (_steer == Steer.Wind) {
-        st = "Target wind angle ${_hdg(_target)}";
+        st = S.current.TargetWindAngle + " ${_hdg(_target)}";
       }
     }
-    _spk.add(SpeakPriority.General, 'HDG', """
-Compass ${_hdg(_busData.compass)},
-C O G ${_hdg(_busData.cog)}, 
-A W A ${_hdg(_busData.awa)} ${_busData.tack ?? ''}
-$st""");
+    _spk.add(
+        SpeakPriority.General,
+        'HDG',
+        S.current.Compass +
+            " ${_hdg(_busData.compass)}, " +
+            S.current.COG +
+            " ${_hdg(_busData.cog)}, " +
+            S.current.AWA +
+            "${_hdg(_busData.awa)} ${_busData.tack ?? ''} $st");
   }
 
   void _speed() {
-    _spk.add(SpeakPriority.General, 'SPD',
-        "Speed ${_dp1(_busData.bsp)}, S O G ${_dp1(
-            _busData.sog)}, V M G ${_dp1(_busData.vmg)}");
+    _spk.add(
+        SpeakPriority.General,
+        'SPD',
+        S.current.Speed +
+            " ${_dp1(_busData.bsp)}, " +
+            S.current.SOG +
+            " ${_dp1(_busData.sog)}, " +
+            S.current.VMG +
+            " ${_dp1(_busData.vmg)}");
   }
 
   void _trip() {
-    _spk.add(SpeakPriority.General, 'TRP',
-        "Trip ${_dp1(_busData.trip)}, G P S trip ${_dp1(_busData.gpsTrip)}");
+    _spk.add(
+        SpeakPriority.General,
+        'TRP',
+        S.current.Trip +
+            " ${_dp1(_busData.trip)}, " +
+            S.current.GPSTrip +
+            " ${_dp1(_busData.gpsTrip)}");
   }
 
   void _steerTo() {
     setState(() {
       _mode = Mode.Steer;
     });
-    _spk.immediate('Steer mode. Press 1 for guidance');
+    _spk.immediate(S.current.SteerModePress);
   }
 
+  //ToDo : add in meter
   void _depth() {
     _lastReportedDepth = _busData.depth(_depthPref);
-    _spk.add(SpeakPriority.General, 'DPT', "Depth ${_dp1(_lastReportedDepth)}");
+    _spk.add(SpeakPriority.General, 'DPT',
+        S.current.Depth + " ${_dp1(_lastReportedDepth)}" + S.current.Feet);
   }
 
   void _setMode(Mode m) {
@@ -876,19 +956,19 @@ $st""");
   }
 
   void _number() {
-    _spk.immediate("Number mode");
+    _spk.immediate(S.current.NumberMode);
     _setMode(Mode.Num);
   }
 
   void _alter(int num, String wind, String compass) {
     if (_target == null) {
-      _spk.immediate("No course set currently");
+      _spk.immediate(S.current.NoCourseSet);
       return;
     }
 
     switch (_steer) {
       case Steer.None:
-      // 'Can't happen'?
+        // 'Can't happen'?
         return;
 
       case Steer.Wind:
@@ -898,67 +978,65 @@ $st""");
         } else if (_target! > 180) {
           _target = _target! - 180;
         }
-        _spk.add(SpeakPriority.General, 'TGT', "Target angle now ${_target.toString()}");
+        _spk.add(SpeakPriority.General, 'TGT',
+            S.current.TargetAngle + " ${_target.toString()}");
         break;
 
       case Steer.Compass:
         _target = (_target! + num) % 360;
-        _spk.add(SpeakPriority.General, 'TGT', "Target course now ${_hdg(_target)}");
+        _spk.add(SpeakPriority.General, 'TGT',
+            S.current.TargetCourse + " ${_hdg(_target)}");
         break;
     }
   }
 
   void _port() {
-    _alter(-10, "Bear away ten degrees", "Ten degrees to port");
+    _alter(-10, S.current.BearAwayTenDegrees, S.current.TenDegreesToPort);
   }
 
   void _stbd() {
-    _alter(10, "Luff up 10 degrees", "10 degrees to starboard");
+    _alter(10, S.current.LuffUpTenDegrees, S.current.TenDegreesToStarboard);
   }
 
   Future<void> _saveOptions() async {
-    await _prefs.setDouble('kanivis.speechRate', _speechRate);
-    await _prefs.setInt('kanivis.volume', _volume);
-    await _prefs.setDouble('kanivis.pitch', _pitch);
-    await _prefs.setInt('kanivis.sensitivity', _sensitivity);
-    _spk.immediate("Command mode");
+    await _prefs.setDouble(PREFS_SPEECH_RATE, _speechRate);
+    await _prefs.setInt(PREFS_VOLUME, _volume);
+    await _prefs.setDouble(PREFS_PITCH, _pitch);
+    await _prefs.setInt(PREFS_SENSITIVITY, _sensitivity);
+    _spk.immediate(S.current.CommandMode);
     _setMode(Mode.Cmd);
   }
 
   void setSensitivity(int chg) {
-    _sensitivity = limit(_sensitivity+chg, 1, 9).toInt();
-    _spk.add(SpeakPriority.Application, 'SENS', "sensitivity $_sensitivity");
+    _sensitivity = limit(_sensitivity + chg, 1, 9).toInt();
+    _spk.add(SpeakPriority.Application, 'SENS',
+        S.current.sensitivity + " $_sensitivity");
     _setBeepFreq();
   }
 
   void _setSpeechVolume(int chg) {
     volume += chg;
     _spk.setVolume(volume);
-    _spk.add(SpeakPriority.Application, 'VOL', "volume $volume");
+    _spk.add(SpeakPriority.Application, 'VOL', S.current.volume + " $volume");
   }
 
   void _setSpeechRate(double chg) {
     speechRate += chg;
     _spk.setSpeechRate(speechRate);
-    _spk.add(SpeakPriority.Application, 'RATE', "rate ${speechRate.toStringAsFixed(1)}");
+    _spk.add(SpeakPriority.Application, 'RATE',
+        S.current.rate + " ${speechRate.toStringAsFixed(1)}");
   }
 
   void _setSpeechPitch(double chg) {
     pitch += chg;
     _spk.setPitch(pitch.toDouble());
-    _spk.add(SpeakPriority.Application, 'PITCH', "pitch ${pitch.toStringAsFixed(1)}");
+    _spk.add(SpeakPriority.Application, 'PITCH',
+        S.current.pitch + " ${pitch.toStringAsFixed(1)}");
   }
 
   void _optGuidance() {
-    _spk.immediate("""
-        2 decrease pitch, 3 increase pitch.
-        5 decrease rate, 6 increase rate.
-        8 decrease volume, 9 increase volume.
-        0 decrease off-course sensitivity, # increase off-course sensitivity.
-        * switch between depth measures.
-        Enter, returns to command mode""");
+    _spk.immediate(S.current.GuidanceOption);
   }
-
 
   // If _offCourse is 'Off' then the timer is disabled&disposed.
   // For any other value, two things come into play: what to do, and how long to wait until the next iteration.
@@ -970,7 +1048,7 @@ $st""");
   // I've decided to let the timer expire, then perform the action, then reset the timer for the next cycle.
 
   void _setBeepFreq() {
-    if (_err == null || _err!.abs() < (10-_sensitivity)) {
+    if (_err == null || _err!.abs() < (10 - _sensitivity)) {
       _beepInterval = 5;
     } else {
       switch (_offCourse) {
@@ -994,19 +1072,25 @@ $st""");
     }
 
     if (_beepInterval != 0 && _offCourseTimer == null) {
-      _offCourseTimer = Timer(Duration(milliseconds: (_beepInterval*1000).toInt()), _speakOffCourse);
+      _offCourseTimer = Timer(
+          Duration(milliseconds: (_beepInterval * 1000).toInt()),
+          _speakOffCourse);
     }
   }
 
   static T limit<T extends num>(T v, T lo, T hi) {
-    if (v<=lo) { return lo; }
-    if (v>=hi) { return hi; }
+    if (v <= lo) {
+      return lo;
+    }
+    if (v >= hi) {
+      return hi;
+    }
     return v;
   }
 
   int _normalise(int i) {
-    if (i >= 180) return i-360;
-    if (i < -180) return i+360;
+    if (i >= 180) return i - 360;
+    if (i < -180) return i + 360;
     return i;
   }
 
@@ -1023,31 +1107,36 @@ $st""");
       case Steer.Compass:
         _target = _busData.compass;
         if (_target == null) {
-          _spk.add(SpeakPriority.General, 'TGN', 'No compass course available, maybe set it manually using number mode');
+          _spk.add(
+              SpeakPriority.General, 'TGN', S.current.NoCompassCourseAvailable);
           return;
         }
-        _spk.add(SpeakPriority.General, 'TGN', "Now steering to compass ${_hdg(_target)}");
+        _spk.add(SpeakPriority.General, 'TGN',
+            S.current.NowSteeringToCompass + " ${_hdg(_target)}");
         break;
 
       case Steer.Wind:
         _target = _busData.awa;
         if (_target == null) {
-          _spk.add(SpeakPriority.General, 'TGN', 'No wind angle available, maybe set it manually using number mode');
+          _spk.add(
+              SpeakPriority.General, 'TGN', S.current.NoWindAngleAvailableSet);
           return;
         }
-        _spk.add(SpeakPriority.General, 'TGN', "Now steering to apparent wind ${_hdg(_target)}");
+        _spk.add(SpeakPriority.General, 'TGN',
+            S.current.NowSteeringToApparentWind + " ${_hdg(_target)}");
         break;
 
       default:
         // can't happen
-        _spk.add(SpeakPriority.General, 'TGN', "Steer mode silenced and reset");
+        _spk.add(
+            SpeakPriority.General, 'TGN', S.current.SteerModeSilencedAndReset);
         _target = null;
         break;
     }
     // reset beep timer; this will set the beep delay, and also crate a one-shot timer that calls _speakOffCourse if need be
     _setBeepFreq();
-    setState(()=>_mode = Mode.Cmd);
-    _spk.immediate("Returning to command mode");
+    setState(() => _mode = Mode.Cmd);
+    _spk.immediate(S.current.ReturningToCommandMode);
   }
 
   // This does the clever off course stuff, in conjunction with the [_setBeepFreq] method.
@@ -1061,31 +1150,32 @@ $st""");
 
     switch (_offCourse) {
       case OffCourse.Off:
-      // disable timer
+        // disable timer
         _offCourseTimer?.cancel();
         _offCourseTimer = null;
         return;
 
       case OffCourse.Beep:
-      // beep with increasing rapidity as we go further off course, sign indicates high beep or low beep tone.
-        _offCourseBeep(_err?.sign??0);
+        // beep with increasing rapidity as we go further off course, sign indicates high beep or low beep tone.
+        _offCourseBeep(_err?.sign ?? 0);
         break;
 
       case OffCourse.Hint:
       // indicate whether we're off with timing dependent on urgency, same as 'Periodic' but with timing dependent on error
 
       case OffCourse.Periodic:
-      // report course/angle with periodicity dependent only on sensitivity
+        // report course/angle with periodicity dependent only on sensitivity
         switch (_steer) {
           case Steer.Compass:
             _spk.add(SpeakPriority.General, 'TGT', _hdg(_busData.compass));
             break;
 
           case Steer.Wind:
-            _spk.add(SpeakPriority.General, 'TGT', _hdg(_busData.awa) + ' ' + (_busData.tack??''));
+            _spk.add(SpeakPriority.General, 'TGT',
+                _hdg(_busData.awa) + ' ' + (_busData.tack ?? ''));
             break;
 
-          default:// can't happen
+          default: // can't happen
             break;
         }
         break;
@@ -1095,10 +1185,16 @@ $st""");
           case Steer.Compass:
           case Steer.Wind:
             if (_err == 0) {
-              _spk.add(SpeakPriority.General, 'TGT', "On course");
+              _spk.add(SpeakPriority.General, 'TGT', S.current.OnCourse);
             } else {
               // error interpretation : you are too far to ...
-              _spk.add(SpeakPriority.General, 'TGT', _err!.abs().toStringAsFixed(0) + (_err! < 0 ? " Port" : " Starboard"));
+              _spk.add(
+                  SpeakPriority.General,
+                  'TGT',
+                  _err!.abs().toStringAsFixed(0) +
+                      (_err! < 0
+                          ? " " + S.current.Port
+                          : " " + S.current.Starboard));
             }
             break;
           default: // can't happen
@@ -1106,191 +1202,243 @@ $st""");
         break;
     }
     // and reset the timer:
-    _offCourseTimer = Timer(Duration(milliseconds: (_beepInterval*1000).toInt()), _speakOffCourse);
+    _offCourseTimer = Timer(
+        Duration(milliseconds: (_beepInterval * 1000).toInt()),
+        _speakOffCourse);
   }
 
-
-  _LabelledAction _l(String label, void Function() action) => _LabelledAction(()=>label, action);
-  _LabelledAction _n(String v) => _LabelledAction(()=>v, ()=>_acc(v));
-  _LabelledAction _noop() => _LabelledAction(()=>'', ()=>{});
-
+  _LabelledAction _l(String label, void Function() action) =>
+      _LabelledAction(() => label, action);
+  _LabelledAction _n(String v) => _LabelledAction(() => v, () => _acc(v));
+  _LabelledAction _noop() => _LabelledAction(() => '', () => {});
 
   Map<Mode, List<_LabelledAction>> _initMenus() => {
-    Mode.Cmd : [
-      _l('Apparent Wind', _apparentWind),
-      _l('True Wind', _trueWind),
-      _l('A I S', _aisInfo),
-
-      _l('Pos', _pos),
-      _l('U T C', _utc),
-      _l('Waypoint', _waypoint),
-
-      _l('Heading', _heading),
-      _l('Speed', _speed),
-      _l('Trip', _trip),
-
-      _l('Steer', _steerTo),
-      _LabelledAction(()=>'Depth', _depth, longPress: changeDepthReporting),
-      _l('Number', _number),
-
-      _LabelledAction(_steerLeft, _port),
-      _l('Enter', _optionsMode),
-      _LabelledAction(_steerRight, _stbd),
-    ],
-    Mode.Num : [
-      _n('1'),
-      _n('2'),
-      _n('3'),
-
-      _n('4'),
-      _n('5'),
-      _n('6'),
-
-      _n('7'),
-      _n('8'),
-      _n('9'),
-
-      _n('-'),
-      _n('0'),
-      _n('+'),
-
-      _n('Reset'),
-      _n('Set'),
-      _n('Cancel'),
-    ],
-    Mode.Opt : [
-      _l('Guidance', _optGuidance),
-      _l('Pitch -', ()=>_setSpeechPitch(-0.1)),
-      _l('Pitch +', ()=>_setSpeechPitch(0.1)),
-
-      _noop(),
-      _l('Rate -', ()=>_setSpeechRate(-0.1)),
-      _l('Rate +', ()=>_setSpeechRate(0.1)),
-
-      _noop(),
-      _l('Vol -', ()=>_setSpeechVolume(-1)),
-      _l('Vol +', ()=>_setSpeechVolume(1)),
-
-      _noop(),
-      _l('Sensitivity -', ()=>setSensitivity(-1)),
-      _l('Sensitivity +', ()=>setSensitivity(1)),
-
-      _l('Depth', _depthPreference),
-      _l('Cmd', _saveOptions),
-      _noop()
-    ],
-
-    Mode.Steer: [
-      _l('Guidance', _steerGuidance),
-      _l('Compass', ()=>_steerUsing(Steer.Compass, OffCourse.Periodic)),
-      _l('Wind', ()=>_steerUsing(Steer.Wind, OffCourse.Periodic)),
-
-      _noop(),
-      _l('Hint (C)', ()=>_steerUsing(Steer.Compass, OffCourse.Hint)),
-      _l('Hint (W)', ()=>_steerUsing(Steer.Wind, OffCourse.Hint)),
-
-      _noop(),
-      _l('Error (C)', ()=>_steerUsing(Steer.Compass, OffCourse.Error)),
-      _l('Error (W)', ()=>_steerUsing(Steer.Wind, OffCourse.Error)),
-
-      _noop(),
-      _l('Beep (C)', ()=>_steerUsing(Steer.Compass, OffCourse.Beep)),
-      _l('Beep (W)', ()=>_steerUsing(Steer.Wind, OffCourse.Beep)),
-
-      _noop(),
-      _l('Cmd', _toCommandMode),
-      _l('Silence', ()=>_steerUsing(Steer.None, OffCourse.Off)),
-
-    ],
-  };
+        Mode.Cmd: [
+          _l(S.current.GUI_CmdApparentWind, _apparentWind),
+          _l(S.current.GUI_CmdTrueWind, _trueWind),
+          _l(S.current.GUI_CmdAIS, _aisInfo),
+          _l(S.current.GUI_CmdPos, _pos),
+          _l(S.current.GUI_CmdUTC, _utc),
+          _l(S.current.GUI_CmdWaypoint, _waypoint),
+          _l(S.current.GUI_CmdHeading, _heading),
+          _l(S.current.GUI_CmdSpeed, _speed),
+          _l(S.current.GUI_CmdTrip, _trip),
+          _l(S.current.GUI_CmdSteer, _steerTo),
+          _LabelledAction(() => S.current.GUI_CmdDepth, _depth,
+              longPress: changeDepthReporting),
+          _l(S.current.GUI_CmdNumber, _number),
+          _LabelledAction(_steerLeft, _port),
+          _l(S.current.GUI_CmdEnter, _optionsMode),
+          _LabelledAction(_steerRight, _stbd),
+        ],
+        Mode.Num: [
+          _n('1'),
+          _n('2'),
+          _n('3'),
+          _n('4'),
+          _n('5'),
+          _n('6'),
+          _n('7'),
+          _n('8'),
+          _n('9'),
+          _n('-'),
+          _n('0'),
+          _n('+'),
+          _n(S.current.GUI_NumReset),
+          _n(S.current.GUI_NumSet),
+          _n(S.current.GUI_NumCancel),
+        ],
+        Mode.Opt: [
+          _l(S.current.GUI_OptGuidance, _optGuidance),
+          _l(S.current.GUI_OptPitchDown, () => _setSpeechPitch(-0.1)),
+          _l(S.current.GUI_OptPitchUp, () => _setSpeechPitch(0.1)),
+          _noop(),
+          _l(S.current.GUI_OptRateDown, () => _setSpeechRate(-0.1)),
+          _l(S.current.GUI_OptRateUp, () => _setSpeechRate(0.1)),
+          _noop(),
+          _l(S.current.GUI_OptVolDown, () => _setSpeechVolume(-1)),
+          _l(S.current.GUI_OptVolUp, () => _setSpeechVolume(1)),
+          _noop(),
+          _l(S.current.GUI_OptSensitivityDown, () => setSensitivity(-1)),
+          _l(S.current.GUI_OptSensitivityUp, () => setSensitivity(1)),
+          _l(S.current.GUI_OptDepth, _depthPreference),
+          _l(S.current.GUI_OptSave, _saveOptions),
+          _noop()
+        ],
+        Mode.Steer: [
+          _l(S.current.GUI_SteerGuidance, _steerGuidance),
+          _l(S.current.GUI_SteerCompass,
+              () => _steerUsing(Steer.Compass, OffCourse.Periodic)),
+          _l(S.current.GUI_SteerWind,
+              () => _steerUsing(Steer.Wind, OffCourse.Periodic)),
+          _noop(),
+          _l(S.current.GUI_SteerHintCompas,
+              () => _steerUsing(Steer.Compass, OffCourse.Hint)),
+          _l(S.current.GUI_SteerHintWind,
+              () => _steerUsing(Steer.Wind, OffCourse.Hint)),
+          _noop(),
+          _l(S.current.GUI_SteerErrorCompas,
+              () => _steerUsing(Steer.Compass, OffCourse.Error)),
+          _l(S.current.GUI_SteerErrorWind,
+              () => _steerUsing(Steer.Wind, OffCourse.Error)),
+          _noop(),
+          _l(S.current.GUI_SteerBeepCompas,
+              () => _steerUsing(Steer.Compass, OffCourse.Beep)),
+          _l(S.current.GUI_SteerBeepWind,
+              () => _steerUsing(Steer.Wind, OffCourse.Beep)),
+          _noop(),
+          _l(S.current.GUI_SteerCmd, _toCommandMode),
+          _l(S.current.GUI_SteerSilence,
+              () => _steerUsing(Steer.None, OffCourse.Off)),
+        ],
+      };
 
   void _optionsMode() {
-    _spk.immediate("Options mode. Press 1 for guidance. Press 'Enter' to return to command mode");
+    _spk.immediate(S.current.OptionsModePressOneForGuidance);
     _setMode(Mode.Opt);
   }
 
   void _toCommandMode() {
-    _spk.immediate('Command mode');
+    _spk.immediate(S.current.CommandMode);
     setState(() => _mode = Mode.Cmd);
-
   }
 
+  String _language = "en";
+
   String _depthPref = 'DBS'; // set when initialised from prefs, if stored
-  List<String> _depthPrefs = [ 'DBT', 'DBK', 'DBS'];
+  List<String> _depthPrefs = ['DBT', 'DBK', 'DBS'];
 
   void _depthPreference() {
-    int d = _depthPrefs.indexOf(_depthPref)+1;
+    int d = _depthPrefs.indexOf(_depthPref) + 1;
     d %= _depthPrefs.length;
     _depthPref = _depthPrefs[d];
 
     String dw = '';
     switch (_depthPref) {
-
-      case 'DBT': dw = 'Transducer'; break;
-      case 'DBK': dw = 'Keel'; break;
-      case 'DBS': dw = 'Surface'; break;
+      case 'DBT':
+        dw = S.current.Transducer;
+        break;
+      case 'DBK':
+        dw = S.current.Keel;
+        break;
+      case 'DBS':
+        dw = S.current.Surface;
+        break;
     }
     _spk.immediate(dw);
-    _prefs.setString('kanivis.depthPreference', _depthPref);
+    _prefs.setString(PREFS_DEPTH_PREFERENCE, _depthPref);
 
     _depth();
-
   }
 
-  void _steerGuidance() =>
-      _spk.immediate('''
-Middle column for compass.
-Right column for wind-angle.
-
-2, periodic compass heading.
-3, periodic wind angle.
-
-The remaining options report with interval reducing as the magnitude of any course error increases.
-
-5, compass with interval.
-6, wind angle with interval.
-
-8, compass off-course.
-9, wind angle off-course.
-
-0, compass beeps
-#, wind angle beeps
-
-Change sensitivity in options mode to control frequency of reporting, and error thresholds.
-
-Enter, return to command mode.
-+, Silence steering guidance.
-  ''');
+  void _steerGuidance() => _spk.immediate(S.current.GuidanceSteer);
 
   String _steerLeft() {
     switch (_steer) {
-      case Steer.Compass: return 'Port 10';
+      case Steer.Compass:
+        return S.current.steerLeftPort;
       case Steer.Wind:
         switch (_busData.tack) {
-          case 'Starboard': return 'Bear Away 10';
-          case 'Port': return 'Luff Up 10';
+          case 'Starboard':
+            return S.current.steerLeftBear;
+          case 'Port':
+            return S.current.steerLeftLuff;
         }
         return '';
-      default: return '';
+      default:
+        return '';
     }
   }
 
   String _steerRight() {
     switch (_steer) {
-      case Steer.Compass: return 'Starboard 10';
+      case Steer.Compass:
+        return S.current.steerLeftStarboard;
       case Steer.Wind:
         switch (_busData.tack) {
-          case 'Starboard': return 'Luff Up 10';
-          case 'Port': return 'Bear Away 10';
+          case 'Starboard':
+            return S.current.steerLeftLuff;
+          case 'Port':
+            return S.current.steerLeftBear;
         }
         return '';
-      default: return '';
+      default:
+        return '';
     }
   }
 }
 
+class _LocalizationSettingsState extends State<LocalizationSettings> {
+  String localization = "";
+  final _formKey = GlobalKey<FormState>();
 
+  late DropdownButtonFormField _ddLocalization;
 
+  _LocalizationSettingsState(SharedPreferences prefs) {
+    _ddLocalization = DropdownButtonFormField(
+        items: [
+          DropdownMenuItem(
+            child: Text('System Default'),
+            value: '',
+          ),
+          DropdownMenuItem(
+            child: Text('English (en-US'),
+            value: 'en-US',
+          ),
+          DropdownMenuItem(
+            child: Text('French (fr-FR)'),
+            value: 'fr-FR',
+          ),
+        ],
+        value: prefs.getString(PREFS_LOCALIZATION) ?? "",
+        onChanged: (value) {
+          setState(() {
+            localization = value;
+          });
+        });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+        appBar: AppBar(title: Text(S.current.GUI_SettingsLocalization)),
+        body: Form(
+          key: _formKey,
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: S.current.GUI_SettingsLanguage,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10.0),
+                          ),
+                        ),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[_ddLocalization])),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {});
+                        Navigator.of(context).pop(this);
+                      },
+                      child: Text(S.current.GUI_SettingsSave),
+                    ),
+                  ),
+                )
+              ]),
+        ));
+  }
+}
 
 class _CommsSettingsState extends State<CommsSettings> {
   String get host => _hc.text..trim();
@@ -1302,12 +1450,13 @@ class _CommsSettingsState extends State<CommsSettings> {
 
   final _formKey = GlobalKey<FormState>();
 
-  _CommsSettingsState(NMEASocketReader nmea, SharedPreferences prefs) :
-        _hc = TextEditingController()..text = nmea.hostname,
+  _CommsSettingsState(NMEASocketReader nmea, SharedPreferences prefs)
+      : _hc = TextEditingController()..text = nmea.hostname,
         _pc = TextEditingController()..text = nmea.port.toString(),
-        sensors = prefs.getBool('kanivis.deviceSensors')??false;
+        sensors = prefs.getBool(PREFS_DEVICE_SENSORS) ?? false;
 
-  @override void dispose() {
+  @override
+  void dispose() {
     super.dispose();
     _hc.dispose();
     _pc.dispose();
@@ -1320,8 +1469,7 @@ class _CommsSettingsState extends State<CommsSettings> {
       color: theme.disabledColor,
     );
     return Scaffold(
-
-        appBar: AppBar(title: Text('Settings')),
+        appBar: AppBar(title: Text(S.current.GUI_SettingsNetwork)),
         body: Form(
           key: _formKey,
           child: Column(
@@ -1350,7 +1498,7 @@ class _CommsSettingsState extends State<CommsSettings> {
                     padding: const EdgeInsets.all(16.0),
                     child: InputDecorator(
                         decoration: InputDecoration(
-                          labelText: 'NMEA network source',
+                          labelText: S.current.GUI_SettingsNMEANetworkSource,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10.0),
                           ),
@@ -1363,12 +1511,12 @@ class _CommsSettingsState extends State<CommsSettings> {
                                 style: sensors ? disabled : null,
                                 controller: _hc,
                                 decoration: InputDecoration(
-                                    counterText: 'Hostname or IP address',
-                                    hintText: 'Hostname'
-                                ),
+                                    counterText: S.current.GUI_SettingsHostname,
+                                    hintText:
+                                        S.current.GUI_SettingsHostnameHint),
                                 validator: (value) {
-                                  if (value?.isEmpty??true) {
-                                    return 'Please enter some text';
+                                  if (value?.isEmpty ?? true) {
+                                    return S.current.GUI_SettingsHostnameError;
                                   }
                                   return null;
                                 },
@@ -1378,21 +1526,21 @@ class _CommsSettingsState extends State<CommsSettings> {
                                 style: sensors ? disabled : null,
                                 controller: _pc,
                                 decoration: InputDecoration(
-                                    counterText: 'Port number',
-                                    hintText: 'Port number'
-                                ),
+                                    counterText:
+                                        S.current.GUI_SettingsPortNumber,
+                                    hintText:
+                                        S.current.GUI_SettingsPortNumberHint),
                                 validator: (value) {
                                   try {
-                                    if (value != null && (int.tryParse(value)??0) > 0) {
+                                    if (value != null &&
+                                        (int.tryParse(value) ?? 0) > 0) {
                                       return null;
                                     }
                                   } catch (err) {}
-                                  return 'Please enter positive number';
+                                  return S.current.GUI_SettingsPortNumber;
                                 },
                               )
-                            ]
-                        )
-                    ),
+                            ])),
                   ),
                 ),
                 Align(
@@ -1400,19 +1548,22 @@ class _CommsSettingsState extends State<CommsSettings> {
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: ElevatedButton(
-                        onPressed: ()=>Navigator.of(context).pop(this),
-                        child: Text("Save"),
-
-
+                      onPressed: () => Navigator.of(context).pop(this),
+                      child: Text(S.current.GUI_SettingsSave),
                     ),
                   ),
                 )
-              ]
-          ),
+              ]),
         ));
   }
+}
 
+class LocalizationSettings extends StatefulWidget {
+  final SharedPreferences _prefs;
+  LocalizationSettings(this._prefs);
 
+  @override
+  State<StatefulWidget> createState() => _LocalizationSettingsState(_prefs);
 }
 
 class CommsSettings extends StatefulWidget {
@@ -1420,30 +1571,23 @@ class CommsSettings extends StatefulWidget {
   final SharedPreferences _prefs;
   CommsSettings(this._nmea, this._prefs);
 
-  @override State<StatefulWidget> createState() => _CommsSettingsState(_nmea, _prefs);
+  @override
+  State<StatefulWidget> createState() => _CommsSettingsState(_nmea, _prefs);
 }
-
-
 
 class _LabelledAction {
   String Function() label;
   void Function() onPress;
   void Function()? longPress;
 
-  _LabelledAction(this.label, this.onPress, { this.longPress });
+  _LabelledAction(this.label, this.onPress, {this.longPress});
 
   get w => Expanded(
       child: ElevatedButton(
           onPressed: onPress,
           onLongPress: longPress,
           child: Center(
-              child:
-              Text(
-                  label.call(),
+              child: Text(label.call(),
                   style: TextStyle(fontSize: 14),
-                  textAlign: TextAlign.center
-              )
-          )
-      )
-  );
+                  textAlign: TextAlign.center))));
 }
