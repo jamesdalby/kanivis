@@ -31,8 +31,6 @@ class KanivisApp extends StatefulWidget {
       context.findAncestorStateOfType<_KanivisAppState>();
 }
 
-Locale? _locale;
-
 class _KanivisAppState extends State<KanivisApp> {
   @override
   Widget build(BuildContext context) {
@@ -62,9 +60,10 @@ class _KanivisAppState extends State<KanivisApp> {
         //supportedLocales: S.delegate.supportedLocales,
         title: 'KANIVIS',
         theme: ThemeData(primarySwatch: Colors.blue),
-        home: MyHomePage());
+        home: MyHomePage(locale: _locale ?? Locale("en")));
   }
 
+  Locale? _locale;
   bool _defaultLocaleSet = false;
   void setDefaultLocale(Locale? deviceLocale) {
     if (!_defaultLocaleSet) {
@@ -378,8 +377,9 @@ class BusData {
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key? key}) : super(key: key);
+  MyHomePage({Key? key, required this.locale}) : super(key: key);
 
+  final Locale locale;
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
@@ -417,7 +417,7 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _hasPermissions = false;
 
   // initialise test-to-speech magic
-  static QSpeak _spk = QSpeak();
+  QSpeak _spk = QSpeak();
 
   /// Update [_latReportedDepth] whenever the user has been told of the depth (not when it's sent on NMEA)
   double? _lastReportedDepth;
@@ -436,32 +436,25 @@ class _MyHomePageState extends State<MyHomePage> {
 
   bool _depthReport = true;
 
-  static double _pitch = 1;
+  double _pitch = 1;
 
-  static double get pitch => _pitch;
+  double get pitch => _pitch;
 
-  static set pitch(double v) => _pitch = limit(v, .5, 2.0);
+  set pitch(double v) => _pitch = limit(v, .5, 2.0);
 
-  static int _volume = 10;
-  static int get volume => _volume;
-  static set volume(int v) => _volume = limit(v, 1, 10);
+  int _volume = 10;
+  int get volume => _volume;
+  set volume(int v) => _volume = limit(v, 1, 10);
 
-  static double _speechRate = 1;
-  static double get speechRate => _speechRate;
-  static set speechRate(double v) => _speechRate = limit(v, 0.1, 3.0);
+  double _speechRate = 1;
+  double get speechRate => _speechRate;
+  set speechRate(double v) => _speechRate = limit(v, 0.1, 3.0);
 
-  static late SharedPreferences _prefs;
-
-  late Locale _locale;
-  setLocale(Locale locale) {
-    setState(() {
-      _locale = locale;
-    });
-  }
+  late SharedPreferences _prefs;
 
   /// initialise text-to-speech stuff to default/sensible values
-  static _initTTS() async {
-    await _spk.setLanguage(_prefs.getString(PREFS_LANGUAGE) ?? "en");
+  _initTTS() async {
+    await _spk.setLanguage(widget.locale.languageCode);
 
     // await spk.setVoice()
 
@@ -629,6 +622,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     List<_LabelledAction> a = _menus[_mode]!;
+    _spk.setLanguage(widget.locale.languageCode);
     return Scaffold(
         appBar: AppBar(
           title: Text('KANIVIS'),
