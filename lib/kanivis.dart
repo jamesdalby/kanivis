@@ -16,32 +16,39 @@ import 'package:nmea/nmea.dart';
 
 import 'package:provider/provider.dart';
 
+import 'Application.dart';
 import 'constants.dart';
 
 // use for localization and need "Flutter Intl" plugin
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'generated/l10n.dart';
 
-class KanivisApp extends StatelessWidget {
-  String getStringValues(String key, String def) {
-    String result = def;
+class KanivisApp extends StatefulWidget {
+  const KanivisApp({Key? key}) : super(key: key);
+  @override
+  State<KanivisApp> createState() => _KanivisAppState();
+  static _KanivisAppState? of(BuildContext context) =>
+      context.findAncestorStateOfType<_KanivisAppState>();
+}
 
-    SharedPreferences.getInstance().then((value) {
-      result = value.getString(key) ?? def;
-    });
+Locale? _locale;
 
-    return result;
-  }
-
+class _KanivisAppState extends State<KanivisApp> {
   @override
   Widget build(BuildContext context) {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-    //Locale locale = Locale("fr");
-    Locale locale = Locale(Platform.localeName.substring(0, 2));
+    //_locale = Locale("fr");
+    //Locale locale = Locale(Platform.localeName.substring(0, 2));
+
+    //print(locale.countryCode);
 
     return MaterialApp(
-        locale: locale,
+        localeResolutionCallback: (deviceLocale, supportedLocales) {
+          setDefaultLocale(deviceLocale);
+          // here you make your app language similar to device language , but you should check whether the localization is supported by your app
+        },
+        locale: _locale,
         localizationsDelegates: [
           S.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -56,6 +63,39 @@ class KanivisApp extends StatelessWidget {
         title: 'KANIVIS',
         theme: ThemeData(primarySwatch: Colors.blue),
         home: MyHomePage());
+  }
+
+  bool _defaultLocaleSet = false;
+  void setDefaultLocale(Locale? deviceLocale) {
+    if (!_defaultLocaleSet) {
+      Application().getLocale(deviceLocale ?? Locale("en")).then((value) {
+        setLocale(value);
+      });
+      _defaultLocaleSet = true;
+    }
+  }
+
+  Locale getLocale() {
+    if (_locale == null) {
+      setDefaultLocale(Locale("en"));
+    }
+    return _locale ?? Locale("en");
+  }
+
+  void setLocale(Locale locale) {
+    //Force known local
+
+    if ((_locale == null) || (_locale!.languageCode != locale.languageCode)) {
+      if (locale.languageCode == "fr") {
+        _locale = Locale("fr");
+      } else {
+        _locale = Locale("en");
+      }
+      S.load(locale).then((value) => setState(() {
+            ;
+          }));
+      Application().locale = locale;
+    }
   }
 }
 
@@ -254,11 +294,9 @@ class BusData {
     } else if (msg is HDG) {
       _compass = msg.heading?.toInt();
       // _heading = msg.trueHeading.toInt();
-
     } else if (msg is HDT) {
       // _heading = msg.heading.toInt();
 //      _check(_hdgt, _course);
-
     } else if (msg is MWV) {
       if (msg.isTrue) {
         _twa = msg.windAngleToBow?.toInt();
@@ -275,55 +313,40 @@ class BusData {
       if (msg.headingTrue != null) {
         // _heading = msg.headingTrue.toInt();
       } // TODO: Should this be mag? selectable?
-
     } else if (msg is GSA) {
       // Active satellites
-
     } else if (msg is ZDA) {
       _utc = msg.utc;
     } else if (msg is MWD) {
       _tws = msg.trueWindSpeedKnots;
       //  _twd = msg.trueWindDirection;
-
     } else if (msg is MTW) {
       // water temp
-
     } else if (msg is GLL) {
       // Geographic lat/long - handled by 'Pos' above
-
     } else if (msg is GLC) {
       // obsolete loran
-
     } else if (msg is GGA) {
       // GPS, handled by Pos above
-
     } else if (msg is VDO) {
       // Own vessel data for AIS.
-
     } else if (msg is WPL) {
       // Waypoint info
-
     } else if (msg is AAM) {
       // Waypoint arrival alarm
-
     } else if (msg is APB) {
       // TODO
-
     } else if (msg is BOD) {
       // Bearing wpt to wpt, not interesting to us.
-
     } else if (msg is GSV) {
       // Satellites in view, not interesting to us.
-
     } else if (msg is VDM) {
       // AIS VDM - currently not interesting (maybe one day?)
-
     } else if (msg is VLW) {
       _trip = msg.resetDistance;
       _gpsTrip = msg.cumulativeGroundDistance;
     } else if (msg is XDR) {
       // transducer measurement, currently not interesting
-
     } else if (msg is XTE) {
       // cross track error
       _xte = msg.crossTrackError * (msg.directionToSteer == 'L' ? 1 : -1);
@@ -428,6 +451,13 @@ class _MyHomePageState extends State<MyHomePage> {
   static set speechRate(double v) => _speechRate = limit(v, 0.1, 3.0);
 
   static late SharedPreferences _prefs;
+
+  late Locale _locale;
+  setLocale(Locale locale) {
+    setState(() {
+      _locale = locale;
+    });
+  }
 
   /// initialise text-to-speech stuff to default/sensible values
   static _initTTS() async {
@@ -606,29 +636,14 @@ class _MyHomePageState extends State<MyHomePage> {
         drawer: Drawer(
             child: ListView(children: <Widget>[
           ListTile(
-              title: Text(S.current.GUI_SettingsLocalization),
+              title: Text("User setttings"),
               onTap: () async {
                 Navigator.of(context).pop();
                 Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (BuildContext context) =>
-                            LocalizationSettings(_prefs))).then((var s) async {
-                  if (s == null) {
-                    print("No change");
-                    return;
-                  }
-                  _prefs.setString(PREFS_LOCALIZATION, s.localization);
-                  if (s.localization.length == 5) {
-                    _prefs.setString(
-                        PREFS_COUNTRY, s.localization.substring(3, 5));
-                    _prefs.setString(
-                        PREFS_LANGUAGE, s.localization.substring(0, 2));
-                  } else {
-                    _prefs.setString(PREFS_COUNTRY, "");
-                    _prefs.setString(PREFS_LANGUAGE, "");
-                  }
-                });
+                        context,
+                        MaterialPageRoute(
+                            builder: (BuildContext context) => UserSettings()))
+                    .then((var s) async {});
               }),
           ListTile(
               title: Text('Communications'),
@@ -1214,21 +1229,21 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Map<Mode, List<_LabelledAction>> _initMenus() => {
         Mode.Cmd: [
-          _l(S.current.GUI_CmdApparentWind, _apparentWind),
-          _l(S.current.GUI_CmdTrueWind, _trueWind),
-          _l(S.current.GUI_CmdAIS, _aisInfo),
-          _l(S.current.GUI_CmdPos, _pos),
-          _l(S.current.GUI_CmdUTC, _utc),
-          _l(S.current.GUI_CmdWaypoint, _waypoint),
-          _l(S.current.GUI_CmdHeading, _heading),
-          _l(S.current.GUI_CmdSpeed, _speed),
-          _l(S.current.GUI_CmdTrip, _trip),
-          _l(S.current.GUI_CmdSteer, _steerTo),
+          _LabelledAction(() => S.current.GUI_CmdApparentWind, _apparentWind),
+          _LabelledAction(() => S.current.GUI_CmdTrueWind, _trueWind),
+          _LabelledAction(() => S.current.GUI_CmdAIS, _aisInfo),
+          _LabelledAction(() => S.current.GUI_CmdPos, _pos),
+          _LabelledAction(() => S.current.GUI_CmdUTC, _utc),
+          _LabelledAction(() => S.current.GUI_CmdWaypoint, _waypoint),
+          _LabelledAction(() => S.current.GUI_CmdHeading, _heading),
+          _LabelledAction(() => S.current.GUI_CmdSpeed, _speed),
+          _LabelledAction(() => S.current.GUI_CmdTrip, _trip),
+          _LabelledAction(() => S.current.GUI_CmdSteer, _steerTo),
           _LabelledAction(() => S.current.GUI_CmdDepth, _depth,
               longPress: changeDepthReporting),
-          _l(S.current.GUI_CmdNumber, _number),
+          _LabelledAction(() => S.current.GUI_CmdNumber, _number),
           _LabelledAction(_steerLeft, _port),
-          _l(S.current.GUI_CmdEnter, _optionsMode),
+          _LabelledAction(() => S.current.GUI_CmdEnter, _optionsMode),
           _LabelledAction(_steerRight, _stbd),
         ],
         Mode.Num: [
@@ -1249,46 +1264,54 @@ class _MyHomePageState extends State<MyHomePage> {
           _n(S.current.GUI_NumCancel),
         ],
         Mode.Opt: [
-          _l(S.current.GUI_OptGuidance, _optGuidance),
-          _l(S.current.GUI_OptPitchDown, () => _setSpeechPitch(-0.1)),
-          _l(S.current.GUI_OptPitchUp, () => _setSpeechPitch(0.1)),
+          _LabelledAction(() => S.current.GUI_OptGuidance, _optGuidance),
+          _LabelledAction(
+              () => S.current.GUI_OptPitchDown, () => _setSpeechPitch(-0.1)),
+          _LabelledAction(
+              () => S.current.GUI_OptPitchUp, () => _setSpeechPitch(0.1)),
           _noop(),
-          _l(S.current.GUI_OptRateDown, () => _setSpeechRate(-0.1)),
-          _l(S.current.GUI_OptRateUp, () => _setSpeechRate(0.1)),
+          _LabelledAction(
+              () => S.current.GUI_OptRateDown, () => _setSpeechRate(-0.1)),
+          _LabelledAction(
+              () => S.current.GUI_OptRateUp, () => _setSpeechRate(0.1)),
           _noop(),
-          _l(S.current.GUI_OptVolDown, () => _setSpeechVolume(-1)),
-          _l(S.current.GUI_OptVolUp, () => _setSpeechVolume(1)),
+          _LabelledAction(
+              () => S.current.GUI_OptVolDown, () => _setSpeechVolume(-1)),
+          _LabelledAction(
+              () => S.current.GUI_OptVolUp, () => _setSpeechVolume(1)),
           _noop(),
-          _l(S.current.GUI_OptSensitivityDown, () => setSensitivity(-1)),
-          _l(S.current.GUI_OptSensitivityUp, () => setSensitivity(1)),
-          _l(S.current.GUI_OptDepth, _depthPreference),
-          _l(S.current.GUI_OptSave, _saveOptions),
+          _LabelledAction(
+              () => S.current.GUI_OptSensitivityDown, () => setSensitivity(-1)),
+          _LabelledAction(
+              () => S.current.GUI_OptSensitivityUp, () => setSensitivity(1)),
+          _LabelledAction(() => S.current.GUI_OptDepth, _depthPreference),
+          _LabelledAction(() => S.current.GUI_OptSave, _saveOptions),
           _noop()
         ],
         Mode.Steer: [
-          _l(S.current.GUI_SteerGuidance, _steerGuidance),
-          _l(S.current.GUI_SteerCompass,
+          _LabelledAction(() => S.current.GUI_SteerGuidance, _steerGuidance),
+          _LabelledAction(() => S.current.GUI_SteerCompass,
               () => _steerUsing(Steer.Compass, OffCourse.Periodic)),
-          _l(S.current.GUI_SteerWind,
+          _LabelledAction(() => S.current.GUI_SteerWind,
               () => _steerUsing(Steer.Wind, OffCourse.Periodic)),
           _noop(),
-          _l(S.current.GUI_SteerHintCompas,
+          _LabelledAction(() => S.current.GUI_SteerHintCompas,
               () => _steerUsing(Steer.Compass, OffCourse.Hint)),
-          _l(S.current.GUI_SteerHintWind,
+          _LabelledAction(() => S.current.GUI_SteerHintWind,
               () => _steerUsing(Steer.Wind, OffCourse.Hint)),
           _noop(),
-          _l(S.current.GUI_SteerErrorCompas,
+          _LabelledAction(() => S.current.GUI_SteerErrorCompas,
               () => _steerUsing(Steer.Compass, OffCourse.Error)),
-          _l(S.current.GUI_SteerErrorWind,
+          _LabelledAction(() => S.current.GUI_SteerErrorWind,
               () => _steerUsing(Steer.Wind, OffCourse.Error)),
           _noop(),
-          _l(S.current.GUI_SteerBeepCompas,
+          _LabelledAction(() => S.current.GUI_SteerBeepCompas,
               () => _steerUsing(Steer.Compass, OffCourse.Beep)),
-          _l(S.current.GUI_SteerBeepWind,
+          _LabelledAction(() => S.current.GUI_SteerBeepWind,
               () => _steerUsing(Steer.Wind, OffCourse.Beep)),
           _noop(),
-          _l(S.current.GUI_SteerCmd, _toCommandMode),
-          _l(S.current.GUI_SteerSilence,
+          _LabelledAction(() => S.current.GUI_SteerCmd, _toCommandMode),
+          _LabelledAction(() => S.current.GUI_SteerSilence,
               () => _steerUsing(Steer.None, OffCourse.Off)),
         ],
       };
@@ -1302,8 +1325,6 @@ class _MyHomePageState extends State<MyHomePage> {
     _spk.immediate(S.current.CommandMode);
     setState(() => _mode = Mode.Cmd);
   }
-
-  String _language = "en";
 
   String _depthPref = 'DBS'; // set when initialised from prefs, if stored
   List<String> _depthPrefs = ['DBT', 'DBK', 'DBS'];
@@ -1368,60 +1389,44 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class _LocalizationSettingsState extends State<LocalizationSettings> {
-  String localization = "";
-  final _formKey = GlobalKey<FormState>();
-
-  late DropdownButtonFormField _ddLocalization;
-
-  _LocalizationSettingsState(SharedPreferences prefs) {
-    _ddLocalization = DropdownButtonFormField(
-        items: [
-          DropdownMenuItem(
-            child: Text('System Default'),
-            value: '',
-          ),
-          DropdownMenuItem(
-            child: Text('English (en-US'),
-            value: 'en-US',
-          ),
-          DropdownMenuItem(
-            child: Text('French (fr-FR)'),
-            value: 'fr-FR',
-          ),
-        ],
-        value: prefs.getString(PREFS_LOCALIZATION) ?? "",
-        onChanged: (value) {
-          setState(() {
-            localization = value;
-          });
-        });
-  }
+class UserSettings extends StatefulWidget {
+  UserSettings();
 
   @override
+  State<StatefulWidget> createState() => _UserSettingsState();
+}
+
+class _UserSettingsState extends State<UserSettings> {
+  @override
   Widget build(BuildContext context) {
+    //KanivisApp.of(context)!.setLocale(Locale("en"));
     return Scaffold(
         appBar: AppBar(title: Text(S.current.GUI_SettingsLocalization)),
         body: Form(
-          key: _formKey,
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Container(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: S.current.GUI_SettingsLanguage,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10.0),
-                          ),
+                    padding: EdgeInsets.fromLTRB(0, 5, 0, 5),
+                    color: Colors.white,
+                    child: Center(
+                        child: DropdownButton(
+                      icon: Icon(Icons.language),
+                      items: const [
+                        DropdownMenuItem(
+                          value: Locale('en'),
+                          child: Text('English'),
                         ),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[_ddLocalization])),
-                  ),
-                ),
+                        DropdownMenuItem(
+                          value: Locale('fr'),
+                          child: Text("Français"),
+                        ),
+                      ],
+                      onChanged: (v) => setState(() {
+                        KanivisApp.of(context)!.setLocale(v as Locale);
+                      }),
+                      value: KanivisApp.of(context)!.getLocale(),
+                    ))),
                 Align(
                   alignment: Alignment.topRight,
                   child: Padding(
@@ -1556,14 +1561,6 @@ class _CommsSettingsState extends State<CommsSettings> {
               ]),
         ));
   }
-}
-
-class LocalizationSettings extends StatefulWidget {
-  final SharedPreferences _prefs;
-  LocalizationSettings(this._prefs);
-
-  @override
-  State<StatefulWidget> createState() => _LocalizationSettingsState(_prefs);
 }
 
 class CommsSettings extends StatefulWidget {
