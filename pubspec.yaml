@@ -12,7 +12,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_tts: ^3.2.4
-  intl: null
+  intl: ^0.17.0 
   shared_preferences: null
   audioplayers: ^0.20.1
   nmea:
@@ -44,9 +44,8 @@ flutter_icons:
   image_path: "svg/k1024.png"
 
 flutter:
-
   uses-material-design: true
-
+  generate: true 
   assets:
     - assets/beeps/
 flutter_intl:

@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_compass/flutter_compass.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:kanivis/offcourse.dart';
@@ -19,9 +20,11 @@ import 'package:provider/provider.dart';
 import 'Application.dart';
 import 'constants.dart';
 
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+
 // use for localization and need "Flutter Intl" plugin
-import 'package:flutter_localizations/flutter_localizations.dart';
-import 'generated/l10n.dart';
+//import 'package:flutter_localizations/flutter_localizations.dart';
+//import 'generated/l10n.dart';
 
 class KanivisApp extends StatefulWidget {
   const KanivisApp({Key? key}) : super(key: key);
@@ -41,6 +44,11 @@ class _KanivisAppState extends State<KanivisApp> {
 
     //print(locale.countryCode);
 
+    if (Application().appLocalizations == null) {
+      AppLocalizations.delegate.load(Locale("en")).then((value) {
+        Application().appLocalizations = value;
+      });
+    }
     return MaterialApp(
         localeResolutionCallback: (deviceLocale, supportedLocales) {
           setDefaultLocale(deviceLocale);
@@ -48,15 +56,12 @@ class _KanivisAppState extends State<KanivisApp> {
         },
         locale: _locale,
         localizationsDelegates: [
-          S.delegate,
+          AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
-          const Locale('en', 'US'), // English
-          const Locale('fr', 'FR'), // French
-        ],
+        supportedLocales: AppLocalizations.supportedLocales,
         //supportedLocales: S.delegate.supportedLocales,
         title: 'KANIVIS',
         theme: ThemeData(primarySwatch: Colors.blue),
@@ -90,9 +95,13 @@ class _KanivisAppState extends State<KanivisApp> {
       } else {
         _locale = Locale("en");
       }
-      S.load(locale).then((value) => setState(() {
-            ;
-          }));
+
+      AppLocalizations.delegate.load(_locale ?? Locale("en")).then((value) {
+        setState(() {
+          Application().appLocalizations = value;
+        });
+      });
+
       Application().locale = locale;
     }
   }
@@ -114,22 +123,22 @@ class DMS {
     String v = nesw;
     switch (nesw.toLowerCase()) {
       case 'n':
-        v = S.current.north;
+        v = Application().appLocalizations!.north;
         break;
       case 'e':
-        v = S.current.east;
+        v = Application().appLocalizations!.east;
         break;
       case 'w':
-        v = S.current.west;
+        v = Application().appLocalizations!.west;
         break;
       case 's':
-        v = S.current.south;
+        v = Application().appLocalizations!.south;
         break;
     }
     return "$deg " +
-        S.current.degrees +
+        Application().appLocalizations!.degrees +
         ", ${_dp1(ms)} " +
-        S.current.minutes +
+        Application().appLocalizations!.minutes +
         " $v";
   }
 
@@ -236,12 +245,16 @@ class BusData {
   // Cross track error as a string suitable for speaking using TTS
   String get xte {
     if (_xte == null) {
-      return S.current.Unavailable;
+      return Application().appLocalizations!.unavailable;
     }
     if (_xte! < 0) {
-      return (-_xte!).toStringAsFixed(2) + ", " + S.current.toPort;
+      return (-_xte!).toStringAsFixed(2) +
+          ", " +
+          Application().appLocalizations!.toport;
     }
-    return _xte!.toStringAsFixed(2) + ", " + S.current.toStarboard;
+    return _xte!.toStringAsFixed(2) +
+        ", " +
+        Application().appLocalizations!.tostarboard;
   }
 
   double? get vmw => _vmw;
@@ -387,7 +400,7 @@ class MyHomePage extends StatefulWidget {
 /// Convert [num] to a three digit (zero padded) number suitable for passing to TTS
 String _hdg(int? num) {
   if (num == null) {
-    return S.current.Unavailable;
+    return Application().appLocalizations!.unavailable;
   }
   return num.toString().padLeft(3, '0').split('').join(' ');
 }
@@ -395,7 +408,7 @@ String _hdg(int? num) {
 /// Convert [num] to a decimal with 1 digit after the decimal point
 String _dp1(double? num) {
   if (num == null) {
-    return S.current.Unavailable;
+    return Application().appLocalizations!.unavailable;
   }
   return num.toStringAsFixed(1);
 }
@@ -469,7 +482,7 @@ class _MyHomePageState extends State<MyHomePage> {
     pitch = (_prefs.get(PREFS_PITCH) as double?) ?? 1.0;
     await _spk.setPitch(pitch);
 
-    _spk.immediate(S.current.initialiseTextToSpeech);
+    _spk.immediate(Application().appLocalizations!.initialisetexttospeech);
     //'Knowles Audible Navigation Information for Visually Impaired Sailors');
   }
 
@@ -713,9 +726,11 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void changeDepthReporting() {
     _depthReport = !_depthReport;
-    _spk.immediate(S.current.DepthWarningsAreNow +
+    _spk.immediate(Application().appLocalizations!.depthwarningsarenow +
         " " +
-        (_depthReport ? S.current.enabled : S.current.silenced));
+        (_depthReport
+            ? Application().appLocalizations!.enabled
+            : Application().appLocalizations!.silenced));
   }
 
   int? _tot = 0;
@@ -727,7 +742,9 @@ class _MyHomePageState extends State<MyHomePage> {
       // it's a digit, accumulate it
       _tot = (_tot ?? 0) * 10 + int.parse(n);
       if (_tot! > 359) {
-        _spk.immediate(S.current.InvalidNumberReturningToCommandMode);
+        _spk.immediate(Application()
+            .appLocalizations!
+            .invalidnumberreturningtocommandmode);
         _rel = Rel.Abs;
         _tot = null;
         _setMode(Mode.Cmd);
@@ -737,14 +754,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
     switch (n) {
       case '-':
-        _spk.immediate(S.current.minus);
+        _spk.immediate(Application().appLocalizations!.minus);
         if (_tot == null) {
           _rel = Rel.Neg;
         }
         break;
 
       case '+':
-        _spk.immediate(S.current.plus);
+        _spk.immediate(Application().appLocalizations!.plus);
         if (_tot == null) {
           _rel = Rel.Pos;
         }
@@ -753,7 +770,7 @@ class _MyHomePageState extends State<MyHomePage> {
       case '=': // legacy
       case 'Set':
         if (_tot == null) {
-          _spk.immediate(S.current.NoNumberWasEntered);
+          _spk.immediate(Application().appLocalizations!.nonumberwasentered);
           // switch back to command node.
         } else {
           _target ??= 0;
@@ -775,37 +792,45 @@ class _MyHomePageState extends State<MyHomePage> {
 
           switch (_steer) {
             case Steer.Wind:
-              _spk.add(SpeakPriority.General, 'TGN',
-                  S.current.TargetWindAngle + " ${_hdg(_target)}");
+              _spk.add(
+                  SpeakPriority.General,
+                  'TGN',
+                  Application().appLocalizations!.targetwindangle +
+                      " ${_hdg(_target)}");
               break;
 
             case Steer.Compass:
-              _spk.add(SpeakPriority.General, 'TGN',
-                  S.current.TargetCourse + " ${_hdg(_target)}");
+              _spk.add(
+                  SpeakPriority.General,
+                  'TGN',
+                  Application().appLocalizations!.targetcourse +
+                      " ${_hdg(_target)}");
               break;
 
             default:
               _spk.add(SpeakPriority.General, 'TGN',
-                  S.current.NoSteerModeIsSetCurrently);
+                  Application().appLocalizations!.nosteermodeissetcurrently);
               break;
           }
         }
         _tot = null;
         _setMode(Mode.Cmd);
         _rel = Rel.Abs;
-        _spk.immediate(S.current.CommandMode);
+        _spk.immediate(Application().appLocalizations!.commandmode);
         break;
 
       case '*':
       case 'Reset':
-        _spk.immediate(S.current.Reset);
+        _spk.immediate(Application().appLocalizations!.reset);
         _rel = Rel.Abs;
         _tot = null;
         break;
 
       case '#':
       case 'Cancel':
-        _spk.immediate(S.current.NumberEntryCancelledNowInCommandMode);
+        _spk.immediate(Application()
+            .appLocalizations!
+            .numberentrycancellednowincommandmode);
         _rel = Rel.Abs;
         _tot = null;
         _setMode(Mode.Cmd);
@@ -818,22 +843,23 @@ class _MyHomePageState extends State<MyHomePage> {
     _spk.add(
         SpeakPriority.General,
         'AWA',
-        S.current.AWA +
+        Application().appLocalizations!.awa +
             " ${_hdg(_busData.awa)} ${_busData.tack ?? ''}, " +
-            S.current.AWS +
+            Application().appLocalizations!.aws +
             " ${_dp1(_busData.aws)}");
   }
 
   void _trueWind() {
     String? msg;
     if (_busData.twa != null) {
-      msg = S.current.TWA + " " + _hdg(_busData.twa);
+      msg = Application().appLocalizations!.twa + " " + _hdg(_busData.twa);
       if (_busData.tack != null) {
         msg += " " + _busData.tack!;
       }
     }
     if (_busData.tws != null) {
-      String tws = S.current.TWS + " " + _dp1(_busData.tws);
+      String tws =
+          Application().appLocalizations!.tws + " " + _dp1(_busData.tws);
       if (msg != null) {
         msg += ", $tws";
       } else {
@@ -842,7 +868,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     if (msg == null) {
       // XXX consider calculating it from Apparent + trig on boat speed/direction
-      msg = S.current.TrueWindUnavailable;
+      msg = Application().appLocalizations!.truewindunavailable;
     }
     _spk.add(SpeakPriority.General, 'TWA', msg);
   }
@@ -850,7 +876,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void _aisInfo() {
     // XXX: Speak closest target by distance, by CPA and by TCPA
     // XXX: Toggle on/off announcement of changed target (hysteresis?)
-    _spk.immediate(S.current.AISCurrentlyUnimplemented);
+    _spk.immediate(Application().appLocalizations!.aiscurrentlyunimplemented);
   }
 
   void _pos() {
@@ -858,16 +884,17 @@ class _MyHomePageState extends State<MyHomePage> {
     DMS? la = _busData._lat;
     DMS? lo = _busData._lng;
     if (la == null || lo == null) {
-      _spk.add(SpeakPriority.General, 'POS', S.current.PositionUnavailable);
+      _spk.add(SpeakPriority.General, 'POS',
+          Application().appLocalizations!.positionunavailable);
       return;
     }
 
     _spk.add(
         SpeakPriority.General,
         'POS',
-        S.current.Lat +
+        Application().appLocalizations!.lat +
             " ${la.toString()}, " +
-            S.current.Long +
+            Application().appLocalizations!.long +
             " ${lo.toString()}");
   }
 
@@ -878,28 +905,29 @@ class _MyHomePageState extends State<MyHomePage> {
     _spk.add(
         SpeakPriority.General,
         'UTC',
-        S.current.UTC +
+        Application().appLocalizations!.utc +
             " " +
             _formatter.format(_busData.utc ?? DateTime.now()));
   }
 
   void _waypoint() {
     if ((_busData.wpt ?? '') == '') {
-      _spk.add(SpeakPriority.General, 'WPT', S.current.NoActiveWaypoint);
+      _spk.add(SpeakPriority.General, 'WPT',
+          Application().appLocalizations!.noactivewaypoint);
       return;
     }
     _spk.add(
         SpeakPriority.General,
         'WPT',
-        S.current.Waypoint +
+        Application().appLocalizations!.waypoint +
             " ${_busData.wpt}, " +
-            S.current.BTW +
+            Application().appLocalizations!.btw +
             " ${_hdg(_busData.btw)}, " +
-            S.current.DTW +
+            Application().appLocalizations!.dtw +
             " ${_dp1(_busData.dtw)}, " +
-            S.current.XTE +
+            Application().appLocalizations!.xte +
             " ${_busData.xte}, " +
-            S.current.VMW +
+            Application().appLocalizations!.vmw +
             " ${_dp1(_busData.vmw)}");
   }
 
@@ -908,19 +936,21 @@ class _MyHomePageState extends State<MyHomePage> {
     String st = "";
     if (_target != null) {
       if (_steer == Steer.Compass) {
-        st = S.current.TargetCompassCourse + " ${_hdg(_target)}";
+        st = Application().appLocalizations!.targetcompasscourse +
+            " ${_hdg(_target)}";
       } else if (_steer == Steer.Wind) {
-        st = S.current.TargetWindAngle + " ${_hdg(_target)}";
+        st = Application().appLocalizations!.targetwindangle +
+            " ${_hdg(_target)}";
       }
     }
     _spk.add(
         SpeakPriority.General,
         'HDG',
-        S.current.Compass +
+        Application().appLocalizations!.compass +
             " ${_hdg(_busData.compass)}, " +
-            S.current.COG +
+            Application().appLocalizations!.cog +
             " ${_hdg(_busData.cog)}, " +
-            S.current.AWA +
+            Application().appLocalizations!.awa +
             "${_hdg(_busData.awa)} ${_busData.tack ?? ''} $st");
   }
 
@@ -928,11 +958,11 @@ class _MyHomePageState extends State<MyHomePage> {
     _spk.add(
         SpeakPriority.General,
         'SPD',
-        S.current.Speed +
+        Application().appLocalizations!.speed +
             " ${_dp1(_busData.bsp)}, " +
-            S.current.SOG +
+            Application().appLocalizations!.sog +
             " ${_dp1(_busData.sog)}, " +
-            S.current.VMG +
+            Application().appLocalizations!.vmg +
             " ${_dp1(_busData.vmg)}");
   }
 
@@ -940,9 +970,9 @@ class _MyHomePageState extends State<MyHomePage> {
     _spk.add(
         SpeakPriority.General,
         'TRP',
-        S.current.Trip +
+        Application().appLocalizations!.trip +
             " ${_dp1(_busData.trip)}, " +
-            S.current.GPSTrip +
+            Application().appLocalizations!.gpstrip +
             " ${_dp1(_busData.gpsTrip)}");
   }
 
@@ -950,14 +980,17 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       _mode = Mode.Steer;
     });
-    _spk.immediate(S.current.SteerModePress);
+    _spk.immediate(Application().appLocalizations!.steermodepress);
   }
 
-  //ToDo : add in meter
   void _depth() {
     _lastReportedDepth = _busData.depth(_depthPref);
-    _spk.add(SpeakPriority.General, 'DPT',
-        S.current.Depth + " ${_dp1(_lastReportedDepth)}" + S.current.Feet);
+    _spk.add(
+        SpeakPriority.General,
+        'DPT',
+        Application().appLocalizations!.depth +
+            " ${_dp1(_lastReportedDepth)}" +
+            Application().appLocalizations!.minutes);
   }
 
   void _setMode(Mode m) {
@@ -965,13 +998,13 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _number() {
-    _spk.immediate(S.current.NumberMode);
+    _spk.immediate(Application().appLocalizations!.numbermode);
     _setMode(Mode.Num);
   }
 
   void _alter(int num, String wind, String compass) {
     if (_target == null) {
-      _spk.immediate(S.current.NoCourseSet);
+      _spk.immediate(Application().appLocalizations!.nocourseset);
       return;
     }
 
@@ -987,24 +1020,29 @@ class _MyHomePageState extends State<MyHomePage> {
         } else if (_target! > 180) {
           _target = _target! - 180;
         }
-        _spk.add(SpeakPriority.General, 'TGT',
-            S.current.TargetAngle + " ${_target.toString()}");
+        _spk.add(
+            SpeakPriority.General,
+            'TGT',
+            Application().appLocalizations!.targetangle +
+                " ${_target.toString()}");
         break;
 
       case Steer.Compass:
         _target = (_target! + num) % 360;
         _spk.add(SpeakPriority.General, 'TGT',
-            S.current.TargetCourse + " ${_hdg(_target)}");
+            Application().appLocalizations!.targetcourse + " ${_hdg(_target)}");
         break;
     }
   }
 
   void _port() {
-    _alter(-10, S.current.BearAwayTenDegrees, S.current.TenDegreesToPort);
+    _alter(-10, Application().appLocalizations!.bearawaytendegrees,
+        Application().appLocalizations!.tendegreestoport);
   }
 
   void _stbd() {
-    _alter(10, S.current.LuffUpTenDegrees, S.current.TenDegreesToStarboard);
+    _alter(10, Application().appLocalizations!.luffuptendegrees,
+        Application().appLocalizations!.tendegreestostarboard);
   }
 
   Future<void> _saveOptions() async {
@@ -1012,39 +1050,43 @@ class _MyHomePageState extends State<MyHomePage> {
     await _prefs.setInt(PREFS_VOLUME, _volume);
     await _prefs.setDouble(PREFS_PITCH, _pitch);
     await _prefs.setInt(PREFS_SENSITIVITY, _sensitivity);
-    _spk.immediate(S.current.CommandMode);
+    _spk.immediate(Application().appLocalizations!.commandmode);
     _setMode(Mode.Cmd);
   }
 
   void setSensitivity(int chg) {
     _sensitivity = limit(_sensitivity + chg, 1, 9).toInt();
     _spk.add(SpeakPriority.Application, 'SENS',
-        S.current.sensitivity + " $_sensitivity");
+        Application().appLocalizations!.sensitivity + " $_sensitivity");
     _setBeepFreq();
   }
 
   void _setSpeechVolume(int chg) {
     volume += chg;
     _spk.setVolume(volume);
-    _spk.add(SpeakPriority.Application, 'VOL', S.current.volume + " $volume");
+    _spk.add(SpeakPriority.Application, 'VOL',
+        Application().appLocalizations!.volume + " $volume");
   }
 
   void _setSpeechRate(double chg) {
     speechRate += chg;
     _spk.setSpeechRate(speechRate);
-    _spk.add(SpeakPriority.Application, 'RATE',
-        S.current.rate + " ${speechRate.toStringAsFixed(1)}");
+    _spk.add(
+        SpeakPriority.Application,
+        'RATE',
+        Application().appLocalizations!.rate +
+            " ${speechRate.toStringAsFixed(1)}");
   }
 
   void _setSpeechPitch(double chg) {
     pitch += chg;
     _spk.setPitch(pitch.toDouble());
     _spk.add(SpeakPriority.Application, 'PITCH',
-        S.current.pitch + " ${pitch.toStringAsFixed(1)}");
+        Application().appLocalizations!.pitch + " ${pitch.toStringAsFixed(1)}");
   }
 
   void _optGuidance() {
-    _spk.immediate(S.current.GuidanceOption);
+    _spk.immediate(Application().appLocalizations!.guidanceoption);
   }
 
   // If _offCourse is 'Off' then the timer is disabled&disposed.
@@ -1116,36 +1158,42 @@ class _MyHomePageState extends State<MyHomePage> {
       case Steer.Compass:
         _target = _busData.compass;
         if (_target == null) {
-          _spk.add(
-              SpeakPriority.General, 'TGN', S.current.NoCompassCourseAvailable);
+          _spk.add(SpeakPriority.General, 'TGN',
+              Application().appLocalizations!.nocompasscourseavailable);
           return;
         }
-        _spk.add(SpeakPriority.General, 'TGN',
-            S.current.NowSteeringToCompass + " ${_hdg(_target)}");
+        _spk.add(
+            SpeakPriority.General,
+            'TGN',
+            Application().appLocalizations!.nowsteeringtocompass +
+                " ${_hdg(_target)}");
         break;
 
       case Steer.Wind:
         _target = _busData.awa;
         if (_target == null) {
-          _spk.add(
-              SpeakPriority.General, 'TGN', S.current.NoWindAngleAvailableSet);
+          _spk.add(SpeakPriority.General, 'TGN',
+              Application().appLocalizations!.nowindangleavailableset);
           return;
         }
-        _spk.add(SpeakPriority.General, 'TGN',
-            S.current.NowSteeringToApparentWind + " ${_hdg(_target)}");
+        _spk.add(
+            SpeakPriority.General,
+            'TGN',
+            Application().appLocalizations!.nowsteeringtoapparentwind +
+                " ${_hdg(_target)}");
         break;
 
       default:
         // can't happen
-        _spk.add(
-            SpeakPriority.General, 'TGN', S.current.SteerModeSilencedAndReset);
+        _spk.add(SpeakPriority.General, 'TGN',
+            Application().appLocalizations!.steermodesilencedandreset);
         _target = null;
         break;
     }
     // reset beep timer; this will set the beep delay, and also crate a one-shot timer that calls _speakOffCourse if need be
     _setBeepFreq();
     setState(() => _mode = Mode.Cmd);
-    _spk.immediate(S.current.ReturningToCommandMode);
+    _spk.immediate(Application().appLocalizations!.returningtocommandmode);
   }
 
   // This does the clever off course stuff, in conjunction with the [_setBeepFreq] method.
@@ -1194,7 +1242,8 @@ class _MyHomePageState extends State<MyHomePage> {
           case Steer.Compass:
           case Steer.Wind:
             if (_err == 0) {
-              _spk.add(SpeakPriority.General, 'TGT', S.current.OnCourse);
+              _spk.add(SpeakPriority.General, 'TGT',
+                  Application().appLocalizations!.oncourse);
             } else {
               // error interpretation : you are too far to ...
               _spk.add(
@@ -1202,8 +1251,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   'TGT',
                   _err!.abs().toStringAsFixed(0) +
                       (_err! < 0
-                          ? " " + S.current.Port
-                          : " " + S.current.Starboard));
+                          ? " " + Application().appLocalizations!.port
+                          : " " + Application().appLocalizations!.starboard));
             }
             break;
           default: // can't happen
@@ -1223,21 +1272,35 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Map<Mode, List<_LabelledAction>> _initMenus() => {
         Mode.Cmd: [
-          _LabelledAction(() => S.current.GUI_CmdApparentWind, _apparentWind),
-          _LabelledAction(() => S.current.GUI_CmdTrueWind, _trueWind),
-          _LabelledAction(() => S.current.GUI_CmdAIS, _aisInfo),
-          _LabelledAction(() => S.current.GUI_CmdPos, _pos),
-          _LabelledAction(() => S.current.GUI_CmdUTC, _utc),
-          _LabelledAction(() => S.current.GUI_CmdWaypoint, _waypoint),
-          _LabelledAction(() => S.current.GUI_CmdHeading, _heading),
-          _LabelledAction(() => S.current.GUI_CmdSpeed, _speed),
-          _LabelledAction(() => S.current.GUI_CmdTrip, _trip),
-          _LabelledAction(() => S.current.GUI_CmdSteer, _steerTo),
-          _LabelledAction(() => S.current.GUI_CmdDepth, _depth,
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdapparentwind,
+              _apparentWind),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdtrip, _trueWind),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdais, _aisInfo),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdpos, _pos),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdutc, _utc),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdwaypoint, _waypoint),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdheading, _heading),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdspeed, _speed),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdtrip, _trip),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdsteer, _steerTo),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmddepth, _depth,
               longPress: changeDepthReporting),
-          _LabelledAction(() => S.current.GUI_CmdNumber, _number),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdnumber, _number),
           _LabelledAction(_steerLeft, _port),
-          _LabelledAction(() => S.current.GUI_CmdEnter, _optionsMode),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_cmdenter, _optionsMode),
           _LabelledAction(_steerRight, _stbd),
         ],
         Mode.Num: [
@@ -1253,70 +1316,88 @@ class _MyHomePageState extends State<MyHomePage> {
           _n('-'),
           _n('0'),
           _n('+'),
-          _n(S.current.GUI_NumReset),
-          _n(S.current.GUI_NumSet),
-          _n(S.current.GUI_NumCancel),
+          _n(Application().appLocalizations!.gui_numreset),
+          _n(Application().appLocalizations!.gui_numset),
+          _n(Application().appLocalizations!.gui_numcancel),
         ],
         Mode.Opt: [
-          _LabelledAction(() => S.current.GUI_OptGuidance, _optGuidance),
+          _LabelledAction(() => Application().appLocalizations!.gui_optguidance,
+              _optGuidance),
           _LabelledAction(
-              () => S.current.GUI_OptPitchDown, () => _setSpeechPitch(-0.1)),
-          _LabelledAction(
-              () => S.current.GUI_OptPitchUp, () => _setSpeechPitch(0.1)),
+              () => Application().appLocalizations!.gui_optpitchdown,
+              () => _setSpeechPitch(-0.1)),
+          _LabelledAction(() => Application().appLocalizations!.gui_optpitchup,
+              () => _setSpeechPitch(0.1)),
+          _noop(),
+          _LabelledAction(() => Application().appLocalizations!.gui_optratedown,
+              () => _setSpeechRate(-0.1)),
+          _LabelledAction(() => Application().appLocalizations!.gui_optrateup,
+              () => _setSpeechRate(0.1)),
+          _noop(),
+          _LabelledAction(() => Application().appLocalizations!.gui_optvoldown,
+              () => _setSpeechVolume(-1)),
+          _LabelledAction(() => Application().appLocalizations!.gui_optvolup,
+              () => _setSpeechVolume(1)),
           _noop(),
           _LabelledAction(
-              () => S.current.GUI_OptRateDown, () => _setSpeechRate(-0.1)),
+              () => Application().appLocalizations!.gui_optsensitivitydown,
+              () => setSensitivity(-1)),
           _LabelledAction(
-              () => S.current.GUI_OptRateUp, () => _setSpeechRate(0.1)),
-          _noop(),
+              () => Application().appLocalizations!.gui_optsensitivityup,
+              () => setSensitivity(1)),
+          _LabelledAction(() => Application().appLocalizations!.gui_optdepth,
+              _depthPreference),
           _LabelledAction(
-              () => S.current.GUI_OptVolDown, () => _setSpeechVolume(-1)),
-          _LabelledAction(
-              () => S.current.GUI_OptVolUp, () => _setSpeechVolume(1)),
-          _noop(),
-          _LabelledAction(
-              () => S.current.GUI_OptSensitivityDown, () => setSensitivity(-1)),
-          _LabelledAction(
-              () => S.current.GUI_OptSensitivityUp, () => setSensitivity(1)),
-          _LabelledAction(() => S.current.GUI_OptDepth, _depthPreference),
-          _LabelledAction(() => S.current.GUI_OptSave, _saveOptions),
+              () => Application().appLocalizations!.gui_optsave, _saveOptions),
           _noop()
         ],
         Mode.Steer: [
-          _LabelledAction(() => S.current.GUI_SteerGuidance, _steerGuidance),
-          _LabelledAction(() => S.current.GUI_SteerCompass,
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_steerguidance,
+              _steerGuidance),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_steercompass,
               () => _steerUsing(Steer.Compass, OffCourse.Periodic)),
-          _LabelledAction(() => S.current.GUI_SteerWind,
+          _LabelledAction(() => Application().appLocalizations!.gui_steerwind,
               () => _steerUsing(Steer.Wind, OffCourse.Periodic)),
           _noop(),
-          _LabelledAction(() => S.current.GUI_SteerHintCompas,
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_steerhintcompas,
               () => _steerUsing(Steer.Compass, OffCourse.Hint)),
-          _LabelledAction(() => S.current.GUI_SteerHintWind,
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_steerhintwind,
               () => _steerUsing(Steer.Wind, OffCourse.Hint)),
           _noop(),
-          _LabelledAction(() => S.current.GUI_SteerErrorCompas,
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_steererrorcompas,
               () => _steerUsing(Steer.Compass, OffCourse.Error)),
-          _LabelledAction(() => S.current.GUI_SteerErrorWind,
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_steererrorwind,
               () => _steerUsing(Steer.Wind, OffCourse.Error)),
           _noop(),
-          _LabelledAction(() => S.current.GUI_SteerBeepCompas,
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_steerbeepcompas,
               () => _steerUsing(Steer.Compass, OffCourse.Beep)),
-          _LabelledAction(() => S.current.GUI_SteerBeepWind,
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_steerbeepwind,
               () => _steerUsing(Steer.Wind, OffCourse.Beep)),
           _noop(),
-          _LabelledAction(() => S.current.GUI_SteerCmd, _toCommandMode),
-          _LabelledAction(() => S.current.GUI_SteerSilence,
+          _LabelledAction(() => Application().appLocalizations!.gui_steercmd,
+              _toCommandMode),
+          _LabelledAction(
+              () => Application().appLocalizations!.gui_steersilence,
               () => _steerUsing(Steer.None, OffCourse.Off)),
         ],
       };
 
   void _optionsMode() {
-    _spk.immediate(S.current.OptionsModePressOneForGuidance);
+    _spk.immediate(
+        Application().appLocalizations!.optionsmodepressoneforguidance);
     _setMode(Mode.Opt);
   }
 
   void _toCommandMode() {
-    _spk.immediate(S.current.CommandMode);
+    _spk.immediate(Application().appLocalizations!.commandmode);
     setState(() => _mode = Mode.Cmd);
   }
 
@@ -1331,13 +1412,13 @@ class _MyHomePageState extends State<MyHomePage> {
     String dw = '';
     switch (_depthPref) {
       case 'DBT':
-        dw = S.current.Transducer;
+        dw = Application().appLocalizations!.transducer;
         break;
       case 'DBK':
-        dw = S.current.Keel;
+        dw = Application().appLocalizations!.keel;
         break;
       case 'DBS':
-        dw = S.current.Surface;
+        dw = Application().appLocalizations!.surface;
         break;
     }
     _spk.immediate(dw);
@@ -1346,18 +1427,19 @@ class _MyHomePageState extends State<MyHomePage> {
     _depth();
   }
 
-  void _steerGuidance() => _spk.immediate(S.current.GuidanceSteer);
+  void _steerGuidance() =>
+      _spk.immediate(Application().appLocalizations!.guidancesteer);
 
   String _steerLeft() {
     switch (_steer) {
       case Steer.Compass:
-        return S.current.steerLeftPort;
+        return Application().appLocalizations!.steerleftport;
       case Steer.Wind:
         switch (_busData.tack) {
           case 'Starboard':
-            return S.current.steerLeftBear;
+            return Application().appLocalizations!.steerleftbear;
           case 'Port':
-            return S.current.steerLeftLuff;
+            return Application().appLocalizations!.steerleftluff;
         }
         return '';
       default:
@@ -1368,13 +1450,13 @@ class _MyHomePageState extends State<MyHomePage> {
   String _steerRight() {
     switch (_steer) {
       case Steer.Compass:
-        return S.current.steerLeftStarboard;
+        return Application().appLocalizations!.steerleftstarboard;
       case Steer.Wind:
         switch (_busData.tack) {
           case 'Starboard':
-            return S.current.steerLeftLuff;
+            return Application().appLocalizations!.steerleftluff;
           case 'Port':
-            return S.current.steerLeftBear;
+            return Application().appLocalizations!.steerleftbear;
         }
         return '';
       default:
@@ -1395,7 +1477,9 @@ class _UserSettingsState extends State<UserSettings> {
   Widget build(BuildContext context) {
     //KanivisApp.of(context)!.setLocale(Locale("en"));
     return Scaffold(
-        appBar: AppBar(title: Text(S.current.GUI_SettingsLocalization)),
+        appBar: AppBar(
+            title:
+                Text(Application().appLocalizations!.gui_settingslocalization)),
         body: Form(
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1430,7 +1514,8 @@ class _UserSettingsState extends State<UserSettings> {
                         setState(() {});
                         Navigator.of(context).pop(this);
                       },
-                      child: Text(S.current.GUI_SettingsSave),
+                      child: Text(
+                          Application().appLocalizations!.gui_settingssave),
                     ),
                   ),
                 )
@@ -1468,7 +1553,8 @@ class _CommsSettingsState extends State<CommsSettings> {
       color: theme.disabledColor,
     );
     return Scaffold(
-        appBar: AppBar(title: Text(S.current.GUI_SettingsNetwork)),
+        appBar: AppBar(
+            title: Text(Application().appLocalizations!.gui_settingsnetwork)),
         body: Form(
           key: _formKey,
           child: Column(
@@ -1497,7 +1583,9 @@ class _CommsSettingsState extends State<CommsSettings> {
                     padding: const EdgeInsets.all(16.0),
                     child: InputDecorator(
                         decoration: InputDecoration(
-                          labelText: S.current.GUI_SettingsNMEANetworkSource,
+                          labelText: Application()
+                              .appLocalizations!
+                              .gui_settingsnmeanetworksource,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10.0),
                           ),
@@ -1510,12 +1598,17 @@ class _CommsSettingsState extends State<CommsSettings> {
                                 style: sensors ? disabled : null,
                                 controller: _hc,
                                 decoration: InputDecoration(
-                                    counterText: S.current.GUI_SettingsHostname,
-                                    hintText:
-                                        S.current.GUI_SettingsHostnameHint),
+                                    counterText: Application()
+                                        .appLocalizations!
+                                        .gui_settingshostname,
+                                    hintText: Application()
+                                        .appLocalizations!
+                                        .gui_settingshostnamehint),
                                 validator: (value) {
                                   if (value?.isEmpty ?? true) {
-                                    return S.current.GUI_SettingsHostnameError;
+                                    return Application()
+                                        .appLocalizations!
+                                        .gui_settingshostnameerror;
                                   }
                                   return null;
                                 },
@@ -1525,10 +1618,12 @@ class _CommsSettingsState extends State<CommsSettings> {
                                 style: sensors ? disabled : null,
                                 controller: _pc,
                                 decoration: InputDecoration(
-                                    counterText:
-                                        S.current.GUI_SettingsPortNumber,
-                                    hintText:
-                                        S.current.GUI_SettingsPortNumberHint),
+                                    counterText: Application()
+                                        .appLocalizations!
+                                        .gui_settingsportnumber,
+                                    hintText: Application()
+                                        .appLocalizations!
+                                        .gui_settingsportnumberhint),
                                 validator: (value) {
                                   try {
                                     if (value != null &&
@@ -1536,7 +1631,9 @@ class _CommsSettingsState extends State<CommsSettings> {
                                       return null;
                                     }
                                   } catch (err) {}
-                                  return S.current.GUI_SettingsPortNumber;
+                                  return Application()
+                                      .appLocalizations!
+                                      .gui_settingsportnumbererror;
                                 },
                               )
                             ])),
@@ -1548,7 +1645,8 @@ class _CommsSettingsState extends State<CommsSettings> {
                     padding: const EdgeInsets.all(8.0),
                     child: ElevatedButton(
                       onPressed: () => Navigator.of(context).pop(this),
-                      child: Text(S.current.GUI_SettingsSave),
+                      child: Text(
+                          Application().appLocalizations!.gui_settingssave),
                     ),
                   ),
                 )

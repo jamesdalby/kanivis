@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class Application {
   static final Application _instance = Application._internal();
@@ -34,5 +35,14 @@ class Application {
         return defaultValue;
       }
     });
+  }
+
+  AppLocalizations? _appLocalizations;
+  set appLocalizations(AppLocalizations? appLocal) {
+    _appLocalizations = appLocal;
+  }
+
+  AppLocalizations? get appLocalizations {
+    return _appLocalizations;
   }
 }
