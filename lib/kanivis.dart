@@ -10,12 +10,12 @@ import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:kanivis/offcourse.dart';
 import 'package:kanivis/qspeak.dart';
-import 'package:permission_handler/permission_handler.dart';
+// import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // import 'package:geolocator/geolocator.dart';
 import 'package:nmea/nmea.dart';
 
-import 'package:provider/provider.dart';
+// import 'package:provider/provider.dart';
 
 import 'Application.dart';
 import 'constants.dart';
@@ -426,7 +426,7 @@ enum Steer { None, Compass, Wind }
 enum OffCourse { Off, Periodic, Hint, Error, Beep }
 
 class _MyHomePageState extends State<MyHomePage> {
-  // permissions check, refrenced if we're using device sensors
+  // permissions check, referenced if we're using device sensors
   bool _hasPermissions = false;
 
   // initialise test-to-speech magic
@@ -487,28 +487,29 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   static late AudioPlayer _audioPlayer;
-  static late AudioCache _audioCache;
+  // static late AudioCache _audioCache;
 
   static void _initBeep() async {
     _audioPlayer = AudioPlayer();
-    _audioPlayer.onPlayerError.listen((e) => print("Error $e"));
+
+    // _audioPlayer.onPlayerError.listen((e) => print("Error $e"));
 
     // _audioPlayer.onPlayerStateChanged.listen((e) => print("State $e"));
 
-    _audioCache =
-        AudioCache(prefix: 'assets/beeps/', fixedPlayer: _audioPlayer);
+    // _audioCache =AudioCache(prefix: 'assets/beeps/');
+    //
+    // await _audioCache.loadAll([
+    //   'high-1.wav',
+    //   'low-1.wav', // XXX: I think these should be generated on demand?  Can control freq & volume (and maybe style)
+    // ]);
 
-    await _audioCache.loadAll([
-      'high-1.wav',
-      'low-1.wav', // XXX: I think these should be generated on demand?  Can control freq & volume (and maybe style)
-    ]);
   }
 
   /// ensure TTS is closed off also audioplayer & cache
   @override
   void dispose() {
     super.dispose();
-    _audioCache.clearAll();
+    // _audioCache.clearAll();
     _audioPlayer.stop();
     _audioPlayer.dispose();
     _spk.stop();
@@ -571,7 +572,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _offCourseBeep(int sign) {
     String p = sign < 0 ? "high" : "low";
-    _audioCache.play('$p-1.wav').onError((error, stackTrace) {
+
+    _audioPlayer.setSourceAsset('beeps/$p-1.wav').onError((error, stackTrace) {
       print(error.toString());
       return _audioPlayer;
     });
@@ -990,7 +992,7 @@ class _MyHomePageState extends State<MyHomePage> {
         'DPT',
         Application().appLocalizations!.depth +
             " ${_dp1(_lastReportedDepth)}" +
-            Application().appLocalizations!.minutes);
+            Application().appLocalizations!.meters);
   }
 
   void _setMode(Mode m) {
@@ -1265,8 +1267,7 @@ class _MyHomePageState extends State<MyHomePage> {
         _speakOffCourse);
   }
 
-  _LabelledAction _l(String label, void Function() action) =>
-      _LabelledAction(() => label, action);
+  // _LabelledAction _l(String label, void Function() action) => _LabelledAction(() => label, action);
   _LabelledAction _n(String v) => _LabelledAction(() => v, () => _acc(v));
   _LabelledAction _noop() => _LabelledAction(() => '', () => {});
 
@@ -1549,7 +1550,7 @@ class _CommsSettingsState extends State<CommsSettings> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final TextStyle? disabled = theme.textTheme.subtitle1?.copyWith(
+    final TextStyle? disabled = theme.textTheme.titleMedium?.copyWith(
       color: theme.disabledColor,
     );
     return Scaffold(
