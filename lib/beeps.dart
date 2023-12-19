@@ -7,14 +7,14 @@ void main() async {
   var generator = WaveGenerator(
     /* sample rate */
       44100,
-      BitDepth.Depth8bit
+      BitDepth.depth8Bit
   );
 
   var note = Note(
     /* frequency */
       220,
       /* msDuration */ 100,
-      /* waveform */ Waveform.Sine,
+      /* waveform */ Waveform.sine,
       /* volume */ 0.5
   );
 
